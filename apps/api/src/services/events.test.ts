@@ -268,18 +268,9 @@ describe('deleteEvent', () => {
   it('should soft-delete (set status to cancelled) when user is organizer', async () => {
     const existingEvent = { id: 'evt-1', organizer_id: 'user-1' };
     const supabase = createMockSupabase();
-    // getEventById chains: from -> select -> eq -> single
+    // getEventById: from().select().eq().single() → single returns promise
     supabase.single.mockResolvedValue({ data: existingEvent, error: null });
-    // deleteEvent chains: from -> update -> eq (no single/thenable needed, just needs to resolve)
-    // Since eq returns the chain and the chain is thenable-like, we just need no error
-    // The code does: const { error } = await supabase.from('events').update(...).eq('id', id);
-    // eq returns the chain, and awaiting it resolves to the chain itself (not a promise)
-    // We need eq to be awaitable and return { error: undefined }
-    // Actually the code destructures { error } from the await result, so we need eq to return a resolved promise
-    // But we also need single to work for getEventById. The trick: single is called first, then eq.
-    // After single resolves, update().eq() is called. eq returns the chain.
-    // The chain is then awaited. Since the chain is a plain object, awaiting it just returns the object.
-    // So { error } = chain, and chain.error is undefined by default. This should work.
+    // deleteEvent: from().update().eq() → eq returns chain (awaited as plain object, error is undefined)
 
     await deleteEvent('evt-1', 'user-1', supabase as any);
 

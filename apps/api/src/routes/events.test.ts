@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Hono } from 'hono';
-import type { AuthContext } from '../middleware/auth.js';
 
 // Mock the supabase client factory
 vi.mock('../services/supabase.js', () => ({
@@ -29,31 +28,30 @@ import { events } from './events.js';
 import {
   listEvents,
   getEventBySlug,
-  getEventById,
   createEvent,
   updateEvent,
   deleteEvent,
   checkSlugAvailability,
-  listEventsByOrganizer,
 } from '../services/events.js';
-import { getSupabaseClient } from '../services/supabase.js';
 
 const mocked = (fn: any) => fn as ReturnType<typeof vi.fn>;
 
-// Create a test app that mounts the events router
-const createApp = () => {
-  const app = new Hono<AuthContext>();
+// Helper: create a test app with optional auth user
+const createApp = (user?: { id: string; email: string }) => {
+  const app = new Hono();
+
+  // Add auth middleware before routes
+  if (user) {
+    app.use('*', async (c, next) => {
+      (c as any).set('user', user);
+      (c as any).set('jwt', 'mock-jwt');
+      await next();
+    });
+  }
+
+  // Mount events router
   app.route('/api/events', events);
   return app;
-};
-
-// Helper to set auth user on context
-const setAuthUser = (app: any, user: { id: string; email: string }, jwt = 'mock-jwt') => {
-  app.use('*', async (c, next) => {
-    (c as any).set('user', user);
-    (c as any).set('jwt', jwt);
-    await next();
-  });
 };
 
 beforeEach(() => {
@@ -159,8 +157,7 @@ describe('GET /api/events/:slug', () => {
 
 describe('POST /api/events', () => {
   it('should create an event and return 201', async () => {
-    const app = createApp();
-    setAuthUser(app, { id: 'user-1', email: 'test@example.com' });
+    const app = createApp({ id: 'user-1', email: 'test@example.com' });
 
     const mockEvent = { id: 'evt-1', title: 'New Event', slug: 'new-event', status: 'draft' };
     mocked(createEvent).mockResolvedValue(mockEvent);
@@ -184,8 +181,7 @@ describe('POST /api/events', () => {
   });
 
   it('should return 401 when not authenticated', async () => {
-    const app = createApp();
-    // No auth middleware → user is undefined
+    const app = createApp(); // No user
 
     const res = await app.request('/api/events', {
       method: 'POST',
@@ -209,8 +205,7 @@ describe('POST /api/events', () => {
 
 describe('PATCH /api/events/:id', () => {
   it('should update an event', async () => {
-    const app = createApp();
-    setAuthUser(app, { id: 'user-1', email: 'test@example.com' });
+    const app = createApp({ id: 'user-1', email: 'test@example.com' });
 
     const updatedEvent = { id: 'evt-1', title: 'Updated Title' };
     mocked(updateEvent).mockResolvedValue(updatedEvent);
@@ -228,8 +223,7 @@ describe('PATCH /api/events/:id', () => {
   });
 
   it('should return 404 when event not found', async () => {
-    const app = createApp();
-    setAuthUser(app, { id: 'user-1', email: 'test@example.com' });
+    const app = createApp({ id: 'user-1', email: 'test@example.com' });
     mocked(updateEvent).mockRejectedValue(new Error('Event not found'));
 
     const res = await app.request('/api/events/evt-x', {
@@ -242,8 +236,7 @@ describe('PATCH /api/events/:id', () => {
   });
 
   it('should return 403 when user is not the organizer', async () => {
-    const app = createApp();
-    setAuthUser(app, { id: 'user-2', email: 'other@example.com' });
+    const app = createApp({ id: 'user-2', email: 'other@example.com' });
     mocked(updateEvent).mockRejectedValue(new Error('Unauthorized: not the event organizer'));
 
     const res = await app.request('/api/events/evt-1', {
@@ -256,7 +249,7 @@ describe('PATCH /api/events/:id', () => {
   });
 
   it('should return 401 when not authenticated', async () => {
-    const app = createApp();
+    const app = createApp(); // No user
 
     const res = await app.request('/api/events/evt-1', {
       method: 'PATCH',
@@ -274,8 +267,7 @@ describe('PATCH /api/events/:id', () => {
 
 describe('DELETE /api/events/:id', () => {
   it('should delete an event successfully', async () => {
-    const app = createApp();
-    setAuthUser(app, { id: 'user-1', email: 'test@example.com' });
+    const app = createApp({ id: 'user-1', email: 'test@example.com' });
     mocked(deleteEvent).mockResolvedValue(undefined);
 
     const res = await app.request('/api/events/evt-1', {
@@ -288,8 +280,7 @@ describe('DELETE /api/events/:id', () => {
   });
 
   it('should return 404 when event not found', async () => {
-    const app = createApp();
-    setAuthUser(app, { id: 'user-1', email: 'test@example.com' });
+    const app = createApp({ id: 'user-1', email: 'test@example.com' });
     mocked(deleteEvent).mockRejectedValue(new Error('Event not found'));
 
     const res = await app.request('/api/events/evt-x', {
@@ -300,8 +291,7 @@ describe('DELETE /api/events/:id', () => {
   });
 
   it('should return 403 when not organizer', async () => {
-    const app = createApp();
-    setAuthUser(app, { id: 'user-2', email: 'other@example.com' });
+    const app = createApp({ id: 'user-2', email: 'other@example.com' });
     mocked(deleteEvent).mockRejectedValue(new Error('Unauthorized: not the event organizer'));
 
     const res = await app.request('/api/events/evt-1', {
@@ -312,7 +302,7 @@ describe('DELETE /api/events/:id', () => {
   });
 
   it('should return 401 when not authenticated', async () => {
-    const app = createApp();
+    const app = createApp(); // No user
 
     const res = await app.request('/api/events/evt-1', {
       method: 'DELETE',

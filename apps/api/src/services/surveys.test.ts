@@ -162,6 +162,24 @@ describe('submitSurveyResponse', () => {
 // ============================================
 
 describe('getSurveyStats', () => {
+  // Helper: create a mock supabase where:
+  // - single() returns a promise (for getSurveyById's .eq().single())
+  // - eq() returns a thenable chain (for the second query .eq() which is awaited directly)
+  const createStatsMock = (survey: any, responses: any[]) => {
+    const supabase = createMockSupabase();
+    // single() is called as the last step in getSurveyById → returns a promise
+    supabase.single.mockResolvedValue({ data: survey, error: null });
+    // eq() must return the chain for getSurveyById (so .single() can be called)
+    // but also be awaitable for the second query (where eq is the last call)
+    // Solution: make eq return the chain, and add a .then to the chain to make it thenable
+    const thenableChain = Object.create(supabase);
+    thenableChain.data = responses;
+    thenableChain.error = null;
+    thenableChain.then = function (resolve: any) { resolve({ data: responses, error: null }); };
+    supabase.eq.mockReturnValue(thenableChain);
+    return supabase;
+  };
+
   it('should calculate stats for rating questions (average + distribution)', async () => {
     const survey = {
       id: 'surv-1',
@@ -172,63 +190,14 @@ describe('getSurveyStats', () => {
       created_at: '2026-07-31T00:00:00Z',
       updated_at: '2026-07-31T00:00:00Z',
     };
-
-    const responses = [
-      { answers: { q1: 5 } },
-      { answers: { q1: 4 } },
-      { answers: { q1: 3 } },
-    ];
-
-    const supabase = createMockSupabase();
-    // getSurveyById: from().select().eq().single() → single returns chain (awaited)
-    // getSurveyStats responses: from().select().eq() → eq returns chain (awaited)
-    // Both single() and eq() must return the chain (not a promise)
-    supabase.single.mockReturnValue(chain);
-    supabase.eq.mockReturnValue(chain);
-    // First await on chain: single() → survey; Second await on chain: eq() → responses
-    // We use a counter to differentiate
-    let awaitCount = 0;
-    const origThen = chain.then;
-    // Instead, let's make the chain thenable that returns different values
-    // Actually simpler: mock single and eq to return chain, and make the chain
-    // resolve differently based on call order using a thenable
-    Object.defineProperty(chain, Symbol.for('vitest:survey:stats'), { value: true });
-
-    // Use a different approach: make chain a thenable that resolves based on context
-    // The simplest: use vi.spyOn to track and differentiate
-    const chainCopy = { ...chain };
-    let callIdx = 0;
-    supabase.single.mockImplementation(() => {
-      callIdx++;
-      // First call is getSurveyById
-      const resultPromise = Promise.resolve({ data: survey, error: null });
-      return resultPromise;
-    });
-    // Wait, single returns chain in the mock pattern. But the code does .eq().single()
-    // and awaits the result. If single returns a promise, that's fine - it's the last in chain.
-    // But then eq must return the chain (not a promise).
-    // For the second query: .from().select().eq() → eq is last, awaited.
-    // eq must return the chain which is then awaited.
-    // The chain is a plain object, awaiting it returns itself. { data: responses, error: null } would need to be the chain.
-    // That won't work because chain has methods.
-
-    // Let me use a completely different approach - make chain thenable
-    // Actually, let's just make eq return a thenable that resolves to { data: responses, error: null }
-    // and single return a thenable that resolves to { data: survey, error: null }
-
-    // Reset
-    supabase.single.mockResolvedValue({ data: survey, error: null });
-    // For eq, we need it to be awaitable AND return data. Make it return a thenable object:
-    const eqResult = { data: responses, error: null, then: undefined as any };
-    eqResult.then = function(resolve: any) { resolve(this); };
-    supabase.eq.mockReturnValue(eqResult);
+    const responses = [{ answers: { q1: 5 } }, { answers: { q1: 4 } }, { answers: { q1: 3 } }];
+    const supabase = createStatsMock(survey, responses);
 
     const stats = await getSurveyStats('surv-1', supabase as any);
 
     expect(stats.survey_id).toBe('surv-1');
     expect(stats.total_responses).toBe(3);
     expect(stats.question_stats).toHaveLength(1);
-
     const q1Stat = stats.question_stats[0];
     expect(q1Stat.type).toBe('rating');
     expect(q1Stat.average).toBe(4); // (5+4+3)/3 = 4
@@ -245,20 +214,11 @@ describe('getSurveyStats', () => {
       created_at: '2026-07-31T00:00:00Z',
       updated_at: '2026-07-31T00:00:00Z',
     };
-
-    const responses = [
-      { answers: { q1: 'A' } },
-      { answers: { q1: 'B' } },
-      { answers: { q1: 'A' } },
-    ];
-
-    const supabase = createMockSupabase();
-    supabase.single.mockResolvedValue({ data: survey, error: null });
-    supabase.eq.mockResolvedValue({ data: responses, error: null });
+    const responses = [{ answers: { q1: 'A' } }, { answers: { q1: 'B' } }, { answers: { q1: 'A' } }];
+    const supabase = createStatsMock(survey, responses);
 
     const stats = await getSurveyStats('surv-2', supabase as any);
     const q1Stat = stats.question_stats[0];
-
     expect(q1Stat.distribution).toEqual({ A: 2, B: 1 });
   });
 
@@ -272,19 +232,11 @@ describe('getSurveyStats', () => {
       created_at: '2026-07-31T00:00:00Z',
       updated_at: '2026-07-31T00:00:00Z',
     };
-
-    const responses = [
-      { answers: { q1: ['X', 'Y'] } },
-      { answers: { q1: ['Y', 'Z'] } },
-    ];
-
-    const supabase = createMockSupabase();
-    supabase.single.mockResolvedValue({ data: survey, error: null });
-    supabase.eq.mockResolvedValue({ data: responses, error: null });
+    const responses = [{ answers: { q1: ['X', 'Y'] } }, { answers: { q1: ['Y', 'Z'] } }];
+    const supabase = createStatsMock(survey, responses);
 
     const stats = await getSurveyStats('surv-3', supabase as any);
     const q1Stat = stats.question_stats[0];
-
     expect(q1Stat.distribution).toEqual({ X: 1, Y: 2, Z: 1 });
   });
 
@@ -305,10 +257,7 @@ describe('getSurveyStats', () => {
       created_at: '2026-07-31T00:00:00Z',
       updated_at: '2026-07-31T00:00:00Z',
     };
-
-    const supabase = createMockSupabase();
-    supabase.single.mockResolvedValue({ data: survey, error: null });
-    supabase.eq.mockResolvedValue({ data: [], error: null });
+    const supabase = createStatsMock(survey, []);
 
     const stats = await getSurveyStats('surv-4', supabase as any);
     expect(stats.total_responses).toBe(0);

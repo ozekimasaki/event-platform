@@ -1,0 +1,243 @@
+---
+import DashboardLayout from '../layout.astro';
+import Button from '../../../components/ui/Button.astro';
+import Badge from '../../../components/ui/Badge.astro';
+import type { Event } from '@event-platform/shared';
+
+const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787';
+
+const activeTab = Astro.url.searchParams.get('tab') || 'all';
+const page = Number(Astro.url.searchParams.get('page') || '1');
+const limit = 20;
+
+const tabStatusMap: Record<string, string> = {
+  all: '',
+  published: 'published',
+  draft: 'draft',
+  completed: 'completed',
+};
+
+const tabs = [
+  { key: 'all', label: 'すべて' },
+  { key: 'published', label: '公開中' },
+  { key: 'draft', label: '下書き' },
+  { key: 'completed', label: '終了' },
+];
+
+let events: Event[] = [];
+let totalPages = 1;
+
+try {
+  const params = new URLSearchParams();
+  params.set('page', String(page));
+  params.set('limit', String(limit));
+  const statusFilter = tabStatusMap[activeTab];
+  if (statusFilter) params.set('status', statusFilter);
+
+  const res = await fetch(`${API_BASE}/api/events/my?${params.toString()}`, {
+    headers: {
+      'Authorization': `Bearer ${Astro.cookies.get('sb-token')?.value || ''}`,
+    },
+  });
+  if (res.ok) {
+    const json = await res.json();
+    events = json.data || [];
+    totalPages = json.pagination?.total_pages || 1;
+  }
+} catch (err) {
+  console.error('Failed to fetch dashboard events:', err);
+}
+
+const statusVariant: Record<string, 'default' | 'success' | 'warning' | 'danger' | 'info'> = {
+  draft: 'default',
+  published: 'success',
+  cancelled: 'danger',
+  completed: 'warning',
+};
+
+const statusLabel: Record<string, string> = {
+  draft: '下書き',
+  published: '公開中',
+  cancelled: 'キャンセル',
+  completed: '終了',
+};
+
+const formatDate = (dateStr: string): string => {
+  return new Date(dateStr).toLocaleDateString('ja-JP', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+};
+---
+
+<DashboardLayout
+  title="イベント管理"
+  breadcrumbs={[{ label: 'イベント管理' }]}
+>
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="heading-lg text-text-primary">イベント管理</h1>
+    <Button variant="accent" href="/dashboard/events/new">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="12" y1="5" x2="12" y2="19" />
+        <line x1="5" y1="12" x2="19" y2="12" />
+      </svg>
+      新規イベント作成
+    </Button>
+  </div>
+
+  <!-- Tabs -->
+  <div class="flex gap-1 mb-6 border-b border-border-default">
+    {tabs.map((tab) => (
+      <a
+        href={`/dashboard/events?tab=${tab.key}`}
+        class:list={[
+          'px-4 py-2.5 text-sm font-medium border-b-2 transition-colors no-underline -mb-px',
+          activeTab === tab.key
+            ? 'border-accent-blue text-accent-blue'
+            : 'border-transparent text-text-secondary hover:text-text-primary hover:border-border-default',
+        ]}
+      >
+        {tab.label}
+      </a>
+    ))}
+  </div>
+
+  <!-- Events Table -->
+  {events.length > 0 ? (
+    <div class="border border-border-default rounded-md overflow-hidden">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="bg-surface-soft border-b border-border-default">
+            <th class="text-left px-4 py-3 font-medium text-text-secondary">イベント名</th>
+            <th class="text-left px-4 py-3 font-medium text-text-secondary hidden md:table-cell">日時</th>
+            <th class="text-left px-4 py-3 font-medium text-text-secondary">ステータス</th>
+            <th class="text-right px-4 py-3 font-medium text-text-secondary">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          {events.map((event) => (
+            <tr class="border-b border-border-default last:border-b-0 hover:bg-surface-soft transition-colors">
+              <td class="px-4 py-3">
+                <div class="flex flex-col gap-0.5">
+                  <a
+                    href={`/dashboard/events/${event.id}/edit`}
+                    class="font-medium text-text-primary hover:text-accent-blue transition-colors no-underline"
+                  >
+                    {event.title}
+                  </a>
+                  <span class="text-text-secondary text-xs">/{event.slug}</span>
+                </div>
+              </td>
+              <td class="px-4 py-3 text-text-secondary hidden md:table-cell">
+                {formatDate(event.start_at)}
+              </td>
+              <td class="px-4 py-3">
+                <Badge variant={statusVariant[event.status] ?? 'default'}>
+                  {statusLabel[event.status] ?? event.status}
+                </Badge>
+              </td>
+              <td class="px-4 py-3">
+                <div class="flex items-center justify-end gap-2">
+                  <a
+                    href={`/events/${event.slug}`}
+                    class="inline-flex items-center justify-center w-8 h-8 rounded-sm text-text-secondary hover:text-text-primary hover:bg-surface-medium transition-colors no-underline"
+                    title="詳細表示"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  </a>
+                  <a
+                    href={`/dashboard/events/${event.id}/edit`}
+                    class="inline-flex items-center justify-center w-8 h-8 rounded-sm text-text-secondary hover:text-accent-blue hover:bg-surface-medium transition-colors no-underline"
+                    title="編集"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                    </svg>
+                  </a>
+                  <button
+                    type="button"
+                    class="inline-flex items-center justify-center w-8 h-8 rounded-sm text-text-secondary hover:text-danger hover:bg-surface-medium transition-colors"
+                    title="削除"
+                    data-event-id={event.id}
+                    data-event-title={event.title}
+                    onclick="handleDeleteEvent(this)"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polyline points="3 6 5 6 21 6" />
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                    </svg>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  ) : (
+    <div class="text-center py-16 border border-border-default rounded-md">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="mx-auto text-text-secondary opacity-40 mb-4">
+        <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+        <line x1="16" y1="2" x2="16" y2="6" />
+        <line x1="8" y1="2" x2="8" y2="6" />
+        <line x1="3" y1="10" x2="21" y2="10" />
+      </svg>
+      <p class="heading-sm text-text-secondary mb-2">イベントがありません</p>
+      <p class="body-sm text-text-secondary mb-4">新しいイベントを作成して始めましょう</p>
+      <Button variant="accent" href="/dashboard/events/new">新規イベント作成</Button>
+    </div>
+  )}
+
+  <!-- Pagination -->
+  {totalPages > 1 && (
+    <div class="flex items-center justify-center gap-3 mt-6">
+      {page > 1 && (
+        <a href={`/dashboard/events?tab=${activeTab}&page=${page - 1}`} class="px-3 py-1.5 text-sm border border-border-default rounded-sm text-text-primary hover:bg-surface-soft transition-colors no-underline">
+          ← 前へ
+        </a>
+      )}
+      <span class="caption-mono text-text-secondary">{page} / {totalPages}</span>
+      {page < totalPages && (
+        <a href={`/dashboard/events?tab=${activeTab}&page=${page + 1}`} class="px-3 py-1.5 text-sm border border-border-default rounded-sm text-text-primary hover:bg-surface-soft transition-colors no-underline">
+          次へ →
+        </a>
+      )}
+    </div>
+  )}
+</DashboardLayout>
+
+<script>
+  async function handleDeleteEvent(btn: HTMLButtonElement) {
+    const eventId = btn.dataset.eventId;
+    const eventTitle = btn.dataset.eventTitle;
+    if (!confirm(`「${eventTitle}」を削除しますか？この操作は取り消せません。`)) return;
+
+    try {
+      const token = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('sb-token='))
+        ?.split('=')[1];
+
+      const res = await fetch(`/api/events/${eventId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (res.ok) {
+        location.reload();
+      } else {
+        alert('削除に失敗しました');
+      }
+    } catch {
+      alert('エラーが発生しました');
+    }
+  }
+</script>

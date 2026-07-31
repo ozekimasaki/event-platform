@@ -1,0 +1,221 @@
+---
+import DashboardLayout from '../../layout.astro';
+import Button from '../../../../components/ui/Button.astro';
+import Input from '../../../../components/ui/Input.astro';
+import Editor from '../../../../components/Editor';
+
+const breadcrumbs = [
+  { label: 'イベント管理', href: '/dashboard/events' },
+  { label: '新規作成' },
+];
+---
+
+<DashboardLayout title="新規イベント作成" {breadcrumbs}>
+  <div class="max-w-3xl">
+    <h1 class="heading-lg text-text-primary mb-6">新規イベント作成</h1>
+
+    <form id="event-form" class="flex flex-col gap-6">
+      <!-- Title -->
+      <Input
+        label="イベント名 *"
+        name="title"
+        id="title"
+        placeholder="イベント名を入力してください"
+        required
+      />
+
+      <!-- Slug -->
+      <div class="flex flex-col gap-1.5">
+        <label for="slug" class="text-sm font-medium text-text-primary">
+          スラッグ (URL)
+        </label>
+        <div class="flex items-center gap-2">
+          <span class="text-text-secondary text-sm">/events/</span>
+          <input
+            type="text"
+            id="slug"
+            name="slug"
+            placeholder="auto-generated"
+            class="w-full px-3 py-2.5 text-base text-text-primary bg-surface-base border border-border-default rounded-sm min-h-[44px] focus:outline-2 focus:outline-accent-blue focus:border-accent-blue"
+          />
+        </div>
+        <p class="text-xs text-text-secondary">未入力の場合はタイトルから自動生成されます</p>
+      </div>
+
+      <!-- Description (Editor) -->
+      <div class="flex flex-col gap-1.5">
+        <label class="text-sm font-medium text-text-primary">説明 *</label>
+        <Editor client:load content="" onChange="" />
+        <input type="hidden" name="description" id="description" />
+      </div>
+
+      <!-- Date/Time -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="flex flex-col gap-1.5">
+          <label for="start_at" class="text-sm font-medium text-text-primary">開始日時 *</label>
+          <input
+            type="datetime-local"
+            id="start_at"
+            name="start_at"
+            required
+            class="w-full px-3 py-2.5 text-base text-text-primary bg-surface-base border border-border-default rounded-sm min-h-[44px] focus:outline-2 focus:outline-accent-blue focus:border-accent-blue"
+          />
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label for="end_at" class="text-sm font-medium text-text-primary">終了日時 *</label>
+          <input
+            type="datetime-local"
+            id="end_at"
+            name="end_at"
+            required
+            class="w-full px-3 py-2.5 text-base text-text-primary bg-surface-base border border-border-default rounded-sm min-h-[44px] focus:outline-2 focus:outline-accent-blue focus:border-accent-blue"
+          />
+        </div>
+      </div>
+
+      <!-- Venue -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Input
+          label="会場名"
+          name="venue_name"
+          id="venue_name"
+          placeholder="例: 渋谷スクランブルスクエア"
+        />
+        <Input
+          label="会場住所"
+          name="venue_address"
+          id="venue_address"
+          placeholder="例: 東京都渋谷区渋谷2-24-12"
+        />
+      </div>
+
+      <!-- Capacity & Pricing -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="flex flex-col gap-1.5">
+          <label for="capacity" class="text-sm font-medium text-text-primary">定員</label>
+          <input
+            type="number"
+            id="capacity"
+            name="capacity"
+            min="1"
+            placeholder="例: 100"
+            class="w-full px-3 py-2.5 text-base text-text-primary bg-surface-base border border-border-default rounded-sm min-h-[44px] focus:outline-2 focus:outline-accent-blue focus:border-accent-blue"
+          />
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label for="pricing_type" class="text-sm font-medium text-text-primary">料金タイプ *</label>
+          <select
+            id="pricing_type"
+            name="pricing_type"
+            required
+            class="w-full px-3 py-2.5 text-base text-text-primary bg-surface-base border border-border-default rounded-sm min-h-[44px] focus:outline-2 focus:outline-accent-blue focus:border-accent-blue"
+          >
+            <option value="free">無料</option>
+            <option value="paid">有料</option>
+            <option value="donation">投げ銭制</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Cover Image URL -->
+      <Input
+        label="カバー画像URL"
+        name="cover_image_url"
+        id="cover_image_url"
+        type="url"
+        placeholder="https://example.com/image.jpg"
+      />
+
+      <!-- Actions -->
+      <div class="flex items-center gap-3 pt-4 border-t border-border-default">
+        <Button type="submit" variant="accent" id="submit-btn">
+          作成する
+        </Button>
+        <Button variant="secondary" href="/dashboard/events">
+          キャンセル
+        </Button>
+        <span id="form-status" class="text-sm text-text-secondary ml-auto"></span>
+      </div>
+    </form>
+  </div>
+</DashboardLayout>
+
+<script>
+  // Auto-generate slug from title
+  const titleInput = document.getElementById('title') as HTMLInputElement;
+  const slugInput = document.getElementById('slug') as HTMLInputElement;
+  let slugManuallyEdited = false;
+
+  slugInput?.addEventListener('input', () => {
+    slugManuallyEdited = true;
+  });
+
+  titleInput?.addEventListener('input', () => {
+    if (slugManuallyEdited) return;
+    const slug = titleInput.value
+      .toLowerCase()
+      .trim()
+      .replace(/[^\w\s-]/g, '')
+      .replace(/[\s_]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .substring(0, 100);
+    if (slugInput) slugInput.value = slug;
+  });
+
+  // Handle form submission
+  const form = document.getElementById('event-form') as HTMLFormElement;
+  const submitBtn = document.getElementById('submit-btn') as HTMLButtonElement;
+  const formStatus = document.getElementById('form-status') as HTMLSpanElement;
+
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!form || !submitBtn) return;
+
+    submitBtn.disabled = true;
+    if (formStatus) formStatus.textContent = '送信中...';
+
+    const formData = new FormData(form);
+    const data: Record<string, unknown> = {
+      title: formData.get('title'),
+      slug: formData.get('slug') || undefined,
+      description: formData.get('description') || '',
+      start_at: new Date(formData.get('start_at') as string).toISOString(),
+      end_at: new Date(formData.get('end_at') as string).toISOString(),
+      venue_name: formData.get('venue_name') || undefined,
+      venue_address: formData.get('venue_address') || undefined,
+      capacity: formData.get('capacity') ? Number(formData.get('capacity')) : undefined,
+      pricing_type: formData.get('pricing_type') || 'free',
+      cover_image_url: formData.get('cover_image_url') || undefined,
+      tags: [],
+    };
+
+    try {
+      const token = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('sb-token='))
+        ?.split('=')[1];
+
+      const res = await fetch('/api/events', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (res.ok) {
+        const json = await res.json();
+        if (formStatus) formStatus.textContent = '';
+        window.location.href = `/dashboard/events/${json.data.id}/edit?created=1`;
+      } else {
+        const err = await res.json();
+        if (formStatus) formStatus.textContent = err.error?.message || 'エラーが発生しました';
+        submitBtn.disabled = false;
+      }
+    } catch {
+      if (formStatus) formStatus.textContent = 'ネットワークエラーが発生しました';
+      submitBtn.disabled = false;
+    }
+  });
+</script>

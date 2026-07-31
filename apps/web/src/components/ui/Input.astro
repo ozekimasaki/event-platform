@@ -7,6 +7,8 @@ interface Props {
   name?: string;
   id?: string;
   disabled?: boolean;
+  value?: string;
+  required?: boolean;
   class?: string;
 }
 
@@ -18,6 +20,8 @@ const {
   name,
   id,
   disabled = false,
+  value,
+  required = false,
   class: className = "",
 } = Astro.props;
 
@@ -34,8 +38,10 @@ const inputId = id || name || "input";
     id={inputId}
     type={type}
     name={name}
+    value={value}
     placeholder={placeholder}
     disabled={disabled}
+    required={required}
     aria-invalid={error ? "true" : undefined}
     aria-describedby={error ? `${inputId}-error` : undefined}
     class:list={[

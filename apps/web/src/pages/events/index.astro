@@ -1,0 +1,129 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import EventCard from '../../components/EventCard.astro';
+import Button from '../../components/ui/Button.astro';
+import Input from '../../components/ui/Input.astro';
+import type { Event } from '@event-platform/shared';
+
+const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787';
+
+const page = Number(Astro.url.searchParams.get('page') || '1');
+const limit = 12;
+const search = Astro.url.searchParams.get('search') || '';
+const status = Astro.url.searchParams.get('status') || '';
+
+let events: Event[] = [];
+let totalPages = 1;
+let total = 0;
+
+try {
+  const params = new URLSearchParams();
+  params.set('page', String(page));
+  params.set('limit', String(limit));
+  if (search) params.set('search', search);
+  if (status) params.set('status', status);
+
+  const res = await fetch(`${API_BASE}/api/events?${params.toString()}`);
+  if (res.ok) {
+    const json = await res.json();
+    events = json.data || [];
+    totalPages = json.pagination?.total_pages || 1;
+    total = json.pagination?.total || 0;
+  }
+} catch (err) {
+  console.error('Failed to fetch events:', err);
+}
+---
+
+<Layout title="イベント一覧" description="開催中のイベントを探す">
+  <main class="mx-auto max-w-7xl px-4 py-12 lg:px-6">
+    <!-- Page Header -->
+    <div class="mb-8">
+      <h1 class="display-md text-text-primary mb-2">イベント一覧</h1>
+      <p class="body-lg text-text-secondary">
+        {total > 0 ? `${total}件のイベントが見つかりました` : 'イベントを探す'}
+      </p>
+    </div>
+
+    <!-- Filters -->
+    <form class="flex flex-col sm:flex-row gap-3 mb-8" method="get" action="/events">
+      <div class="flex-1">
+        <Input
+          name="search"
+          placeholder="イベント名で検索..."
+          value={search}
+        />
+      </div>
+      <div class="flex gap-2">
+        <select
+          name="status"
+          class="px-3 py-2.5 text-base text-text-primary bg-surface-base border border-border-default rounded-sm min-h-[44px] focus:outline-2 focus:outline-accent-blue focus:border-accent-blue"
+          value={status}
+        >
+          <option value="">すべてのステータス</option>
+          <option value="published" selected={status === 'published'}>公開中</option>
+          <option value="draft" selected={status === 'draft'}>下書き</option>
+          <option value="completed" selected={status === 'completed'}>終了</option>
+        </select>
+        <Button type="submit" variant="primary">検索</Button>
+      </div>
+    </form>
+
+    <!-- Event Grid -->
+    {events.length > 0 ? (
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
+        {events.map((event) => (
+          <EventCard event={event} />
+        ))}
+      </div>
+    ) : (
+      <div class="text-center py-16">
+        <div class="text-text-secondary mb-4">
+          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="mx-auto opacity-40">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+            <line x1="16" y1="2" x2="16" y2="6" />
+            <line x1="8" y1="2" x2="8" y2="6" />
+            <line x1="3" y1="10" x2="21" y2="10" />
+          </svg>
+        </div>
+        <p class="heading-md text-text-secondary mb-2">イベントが見つかりませんでした</p>
+        <p class="body-sm text-text-secondary">検索条件を変更してお試しください</p>
+      </div>
+    )}
+
+    <!-- Pagination -->
+    {totalPages > 1 && (
+      <nav class="flex items-center justify-center gap-3" aria-label="ページネーション">
+        {page > 1 ? (
+          <a
+            href={`/events?page=${page - 1}${search ? `&search=${encodeURIComponent(search)}` : ''}${status ? `&status=${status}` : ''}`}
+            class="inline-flex items-center justify-center px-4 py-2 text-sm font-medium border border-border-default rounded-sm text-text-primary hover:bg-surface-soft transition-colors no-underline min-h-[44px]"
+          >
+            ← 前へ
+          </a>
+        ) : (
+          <span class="inline-flex items-center px-4 py-2 text-sm font-medium border border-border-subtle rounded-sm text-text-secondary opacity-50 min-h-[44px]">
+            ← 前へ
+          </span>
+        )}
+
+        <span class="caption-mono text-text-secondary px-3">
+          {page} / {totalPages}
+        </span>
+
+        {page < totalPages ? (
+          <a
+            href={`/events?page=${page + 1}${search ? `&search=${encodeURIComponent(search)}` : ''}${status ? `&status=${status}` : ''}`}
+            class="inline-flex items-center justify-center px-4 py-2 text-sm font-medium border border-border-default rounded-sm text-text-primary hover:bg-surface-soft transition-colors no-underline min-h-[44px]"
+          >
+            次へ →
+          </a>
+        ) : (
+          <span class="inline-flex items-center px-4 py-2 text-sm font-medium border border-border-subtle rounded-sm text-text-secondary opacity-50 min-h-[44px]">
+            次へ →
+          </span>
+        )}
+      </nav>
+    )}
+  </main>
+</Layout>

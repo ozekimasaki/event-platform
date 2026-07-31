@@ -105,4 +105,31 @@ export interface EventQuery {
   status?: EventStatus;
   search?: string;
   tag?: string;
+  sort?: string;
+}
+
+// Create Event Request (alias for CreateEventInput)
+export type CreateEventRequest = CreateEventInput & { slug?: string };
+
+// Update Event Request (alias for UpdateEventInput)
+export type UpdateEventRequest = UpdateEventInput & { slug?: string };
+
+// Event List Query (alias for EventQuery)
+export type EventListQuery = EventQuery;
+
+// Event List Response
+export interface EventListResponse {
+  events: Event[];
+  total: number;
+  page: number;
+  limit: number;
+  total_pages: number;
+}
+
+// Upload Response
+export interface UploadResponse {
+  url: string;
+  key: string;
+  size: number;
+  mimetype: string;
 }

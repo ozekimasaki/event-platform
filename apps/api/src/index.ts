@@ -2,7 +2,9 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { routes } from './routes/index.js';
 import { auth } from './routes/auth.js';
-import { authMiddleware } from './middleware/auth.js';
+import { events } from './routes/events.js';
+import { upload } from './routes/upload.js';
+import { authMiddleware, optionalAuthMiddleware } from './middleware/auth.js';
 import { CheckInCoordinator } from './durable-objects/check-in.js';
 import type { Env } from './services/supabase.js';
 
@@ -30,6 +32,14 @@ app.get('/api/health', (c) => {
 
 // Auth routes (public — login/signup/refresh/oauth)
 app.route('/api/auth', auth);
+
+// Event routes (public endpoints use optionalAuth, protected ones check inside)
+app.use('/api/events/*', optionalAuthMiddleware);
+app.route('/api/events', events);
+
+// Upload routes (require authentication)
+app.use('/api/upload/*', authMiddleware);
+app.route('/api/upload', upload);
 
 // Protected API routes (require authentication)
 app.use('/api/*', authMiddleware);

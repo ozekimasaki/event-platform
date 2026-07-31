@@ -1,0 +1,280 @@
+---
+import DashboardLayout from '../../../dashboard/layout.astro';
+import Button from '../../../../../components/ui/Button.astro';
+import Input from '../../../../../components/ui/Input.astro';
+import Badge from '../../../../../components/ui/Badge.astro';
+import CheckInDashboard from '../../../../../components/CheckInDashboard';
+import type { Event } from '@event-platform/shared';
+
+const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787';
+const { id } = Astro.params;
+
+let event: Event | null = null;
+let notFound = false;
+let token = '';
+
+try {
+  token = Astro.cookies.get('sb-access-token')?.value ?? '';
+  if (!token) {
+    return Astro.redirect('/login');
+  }
+
+  const eventRes = await fetch(`${API_BASE}/api/events/by-id/${id}`, {
+    headers: { 'Authorization': `Bearer ${token}` },
+  });
+
+  if (!eventRes.ok) {
+    notFound = true;
+  } else {
+    const eventJson = await eventRes.json();
+    event = eventJson.data;
+  }
+} catch (err) {
+  console.error('Failed to fetch event:', err);
+  notFound = true;
+}
+
+const formatDate = (dateStr: string): string => {
+  const date = new Date(dateStr);
+  return date.toLocaleDateString('ja-JP', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+---
+
+{!notFound && event ? (
+  <DashboardLayout
+    title={`チェックイン管理 - ${event.title}`}
+    breadcrumbs={[
+      { label: 'イベント管理', href: '/dashboard/events' },
+      { label: event.title, href: `/dashboard/events/${event.id}/edit` },
+      { label: 'チェックイン管理' },
+    ]}
+  >
+    <div class="flex flex-col gap-6">
+      <!-- Header -->
+      <div class="flex items-center justify-between flex-wrap gap-4">
+        <div>
+          <h1 class="heading-lg text-text-primary">チェックイン管理</h1>
+          <p class="body-sm text-text-secondary mt-1">{event.title}</p>
+          <p class="text-xs text-text-secondary mt-0.5">
+            {formatDate(event.start_at)} — {formatDate(event.end_at)}
+          </p>
+        </div>
+        <div class="flex items-center gap-3">
+          <Button variant="secondary" size="sm" href={`/dashboard/events/${event.id}/participants`}>
+            参加者一覧
+          </Button>
+        </div>
+      </div>
+
+      <!-- Two column layout -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Left: QR Scanner + Manual Check-in -->
+        <div class="flex flex-col gap-6">
+          <!-- QR Code Scanner Section -->
+          <div
+            class="p-6 rounded-md"
+            style="background-color: var(--color-surface-elevated); border: 1px solid var(--color-border-default);"
+          >
+            <h2 class="text-lg font-semibold text-text-primary mb-4">QRコードスキャナー</h2>
+            <div
+              class="flex flex-col items-center justify-center aspect-square max-w-xs mx-auto rounded-sm"
+              style="background-color: var(--color-surface-base); border: 2px dashed var(--color-border-default);"
+              id="qr-scanner-area"
+            >
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="text-text-secondary mb-3">
+                <rect x="3" y="3" width="7" height="7" />
+                <rect x="14" y="3" width="7" height="7" />
+                <rect x="3" y="14" width="7" height="7" />
+                <rect x="14" y="14" width="3" height="3" />
+                <line x1="21" y1="14" x2="21" y2="17" />
+                <line x1="14" y1="21" x2="17" y2="21" />
+                <line x1="21" y1="21" x2="21" y2="21" />
+              </svg>
+              <p class="text-sm text-text-secondary text-center px-4">
+                カメラを起動してQRコードをスキャン
+              </p>
+              <button
+                id="start-camera-btn"
+                class="mt-4 px-4 py-2 text-sm font-medium rounded-sm transition-colors"
+                style="background-color: var(--color-accent-blue); color: var(--color-text-on-accent, #fff);"
+              >
+                カメラを起動
+              </button>
+            </div>
+
+            <!-- Manual token input -->
+            <div class="mt-4">
+              <label class="block text-sm font-medium text-text-secondary mb-1.5">
+                またはQRトークンを手動入力
+              </label>
+              <div class="flex gap-2">
+                <input
+                  type="text"
+                  id="qr-token-input"
+                  placeholder="QRトークンを入力..."
+                  class="flex-1 px-3 py-2 text-sm rounded-sm"
+                  style="background-color: var(--color-surface-base); border: 1px solid var(--color-border-default); color: var(--color-text-primary);"
+                />
+                <button
+                  id="checkin-token-btn"
+                  class="px-4 py-2 text-sm font-medium rounded-sm transition-colors"
+                  style="background-color: var(--color-accent-blue); color: var(--color-text-on-accent, #fff);"
+                >
+                  チェックイン
+                </button>
+              </div>
+              <div id="token-result" class="mt-2 text-sm hidden"></div>
+            </div>
+          </div>
+
+          <!-- Manual Check-in Form -->
+          <div
+            class="p-6 rounded-md"
+            style="background-color: var(--color-surface-elevated); border: 1px solid var(--color-border-default);"
+          >
+            <h2 class="text-lg font-semibold text-text-primary mb-4">手動チェックイン</h2>
+            <p class="text-sm text-text-secondary mb-3">
+              参加者のユーザーIDでチェックイン
+            </p>
+            <div class="flex gap-2">
+              <input
+                type="text"
+                id="manual-user-id-input"
+                placeholder="ユーザーIDを入力..."
+                class="flex-1 px-3 py-2 text-sm rounded-sm"
+                style="background-color: var(--color-surface-base); border: 1px solid var(--color-border-default); color: var(--color-text-primary);"
+              />
+              <button
+                id="manual-checkin-btn"
+                class="px-4 py-2 text-sm font-medium rounded-sm transition-colors"
+                style="background-color: var(--color-green-600, #16a34a); color: #fff;"
+              >
+                チェックイン
+              </button>
+            </div>
+            <div id="manual-result" class="mt-2 text-sm hidden"></div>
+          </div>
+        </div>
+
+        <!-- Right: Real-time Dashboard -->
+        <div>
+          <CheckInDashboard
+            client:load
+            eventId={event.id}
+            eventSlug={event.slug}
+            apiBaseUrl={API_BASE}
+            accessToken={token}
+          />
+        </div>
+      </div>
+    </div>
+
+    <!-- Client-side scripts -->
+    <script define:vars={{ API_BASE, token, eventSlug: event.slug }}>
+      // Token-based check-in
+      const tokenInput = document.getElementById('qr-token-input') as HTMLInputElement;
+      const tokenBtn = document.getElementById('checkin-token-btn') as HTMLButtonElement;
+      const tokenResult = document.getElementById('token-result') as HTMLDivElement;
+
+      tokenBtn?.addEventListener('click', async () => {
+        const qrToken = tokenInput.value.trim();
+        if (!qrToken) return;
+
+        tokenBtn.disabled = true;
+        tokenBtn.textContent = '処理中...';
+
+        try {
+          const res = await fetch(`${API_BASE}/api/events/${eventSlug}/check-in`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify({ qr_token: qrToken }),
+          });
+
+          const json = await res.json();
+          tokenResult.classList.remove('hidden');
+
+          if (json.success) {
+            tokenResult.style.color = '#16a34a';
+            tokenResult.textContent = '✓ チェックイン完了';
+            tokenInput.value = '';
+          } else {
+            tokenResult.style.color = '#ef4444';
+            tokenResult.textContent = `✗ ${json.error?.message ?? 'エラーが発生しました'}`;
+          }
+        } catch (err) {
+          tokenResult.classList.remove('hidden');
+          tokenResult.style.color = '#ef4444';
+          tokenResult.textContent = '✗ 通信エラーが発生しました';
+        } finally {
+          tokenBtn.disabled = false;
+          tokenBtn.textContent = 'チェックイン';
+        }
+      });
+
+      // Manual check-in
+      const manualInput = document.getElementById('manual-user-id-input') as HTMLInputElement;
+      const manualBtn = document.getElementById('manual-checkin-btn') as HTMLButtonElement;
+      const manualResult = document.getElementById('manual-result') as HTMLDivElement;
+
+      manualBtn?.addEventListener('click', async () => {
+        const userId = manualInput.value.trim();
+        if (!userId) return;
+
+        manualBtn.disabled = true;
+        manualBtn.textContent = '処理中...';
+
+        try {
+          const res = await fetch(`${API_BASE}/api/events/${eventSlug}/check-in/manual`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify({ user_id: userId }),
+          });
+
+          const json = await res.json();
+          manualResult.classList.remove('hidden');
+
+          if (json.success) {
+            manualResult.style.color = '#16a34a';
+            manualResult.textContent = '✓ チェックイン完了';
+            manualInput.value = '';
+          } else {
+            manualResult.style.color = '#ef4444';
+            manualResult.textContent = `✗ ${json.error?.message ?? 'エラーが発生しました'}`;
+          }
+        } catch (err) {
+          manualResult.classList.remove('hidden');
+          manualResult.style.color = '#ef4444';
+          manualResult.textContent = '✗ 通信エラーが発生しました';
+        } finally {
+          manualBtn.disabled = false;
+          manualBtn.textContent = 'チェックイン';
+        }
+      });
+
+      // Camera button placeholder
+      const cameraBtn = document.getElementById('start-camera-btn') as HTMLButtonElement;
+      cameraBtn?.addEventListener('click', () => {
+        alert('カメラ機能は本番環境で利用可能です。現在はQRトークンの手動入力でチェックインできます。');
+      });
+    </script>
+  </DashboardLayout>
+) : (
+  <DashboardLayout title="イベントが見つかりません">
+    <div class="text-center py-12">
+      <p class="text-text-secondary body-lg">イベントが見つかりませんでした</p>
+      <Button variant="accent" href="/dashboard/events" class="mt-4">イベント一覧に戻る</Button>
+    </div>
+  </DashboardLayout>
+)}

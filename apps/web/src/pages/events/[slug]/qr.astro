@@ -1,0 +1,137 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import Button from '../../../components/ui/Button.astro';
+import QRCodeDisplay from '../../../components/QRCodeDisplay';
+import type { Event, Registration } from '@event-platform/shared';
+
+const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787';
+const { slug } = Astro.params;
+
+let event: Event | null = null;
+let registration: Registration | null = null;
+let notFound = false;
+let unauthorized = false;
+
+try {
+  const token = Astro.cookies.get('sb-access-token')?.value;
+  if (!token) {
+    return Astro.redirect('/login');
+  }
+
+  // Fetch event
+  const eventRes = await fetch(`${API_BASE}/api/events/${slug}`, {
+    headers: { 'Authorization': `Bearer ${token}` },
+  });
+
+  if (!eventRes.ok) {
+    notFound = true;
+  } else {
+    const eventJson = await eventRes.json();
+    event = eventJson.data;
+
+    if (event) {
+      // Fetch user's registrations to find this event's registration
+      const regRes = await fetch(`${API_BASE}/api/my/registrations`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+
+      if (regRes.ok) {
+        const regJson = await regRes.json();
+        const allRegs = (regJson.data ?? []) as (Registration & { event?: Event })[];
+        registration = allRegs.find((r) => r.event_id === event!.id) ?? null;
+
+        if (!registration) {
+          unauthorized = true;
+        }
+      }
+    }
+  }
+} catch (err) {
+  console.error('Failed to fetch data:', err);
+  notFound = true;
+}
+
+const formatDate = (dateStr: string): string => {
+  const date = new Date(dateStr);
+  return date.toLocaleDateString('ja-JP', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+---
+
+<Layout title="QRコード | イベント管理プラットフォーム">
+  <div class="max-w-lg mx-auto px-4 py-8">
+    {notFound ? (
+      <div class="text-center py-16">
+        <p class="text-text-secondary body-lg mb-4">イベントが見つかりませんでした</p>
+        <Button variant="accent" href="/events">イベント一覧に戻る</Button>
+      </div>
+    ) : unauthorized ? (
+      <div class="text-center py-16">
+        <p class="text-text-secondary body-lg mb-4">このイベントの登録が見つかりません</p>
+        <Button variant="accent" href={`/events/${slug}`}>イベントページに戻る</Button>
+      </div>
+    ) : event && registration ? (
+      <div class="flex flex-col gap-6">
+        <!-- Event Info Header -->
+        <div class="text-center">
+          <h1 class="text-xl font-bold text-text-primary">{event.title}</h1>
+          <p class="text-sm text-text-secondary mt-2">{formatDate(event.start_at)}</p>
+          {event.venue_name && (
+            <p class="text-sm text-text-secondary mt-1">{event.venue_name}</p>
+          )}
+        </div>
+
+        <!-- QR Code Display -->
+        <QRCodeDisplay
+          client:load
+          token={registration.qr_token}
+          size={280}
+          format="svg"
+          showDownload={true}
+          registrationId={registration.id}
+        />
+
+        <!-- Registration Details -->
+        <div
+          class="p-5 rounded-md"
+          style="background-color: var(--color-surface-elevated); border: 1px solid var(--color-border-default);"
+        >
+          <h2 class="text-base font-semibold text-text-primary mb-3">登録詳細</h2>
+          <dl class="flex flex-col gap-2 text-sm">
+            <div class="flex justify-between">
+              <dt class="text-text-secondary">ステータス</dt>
+              <dd class="text-text-primary font-medium">
+                {registration.status === 'confirmed' ? '参加確定' :
+                 registration.status === 'checked_in' ? 'チェックイン済' :
+                 registration.status === 'waitlisted' ? '待機中' :
+                 registration.status === 'cancelled' ? 'キャンセル' : registration.status}
+              </dd>
+            </div>
+            <div class="flex justify-between">
+              <dt class="text-text-secondary">登録日時</dt>
+              <dd class="text-text-primary">{formatDate(registration.created_at)}</dd>
+            </div>
+            {registration.checked_in_at && (
+              <div class="flex justify-between">
+                <dt class="text-text-secondary">チェックイン日時</dt>
+                <dd class="text-text-primary">{formatDate(registration.checked_in_at)}</dd>
+              </div>
+            )}
+          </dl>
+        </div>
+
+        <!-- Back button -->
+        <div class="text-center">
+          <Button variant="secondary" href="/my/registrations">
+            登録一覧に戻る
+          </Button>
+        </div>
+      </div>
+    ) : null}
+  </div>
+</Layout>

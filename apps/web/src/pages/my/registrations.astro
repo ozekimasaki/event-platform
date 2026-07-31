@@ -1,0 +1,215 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Badge from '../../components/ui/Badge.astro';
+import Button from '../../components/ui/Button.astro';
+import Card from '../../components/ui/Card.astro';
+import QRCodeDisplay from '../../components/QRCodeDisplay';
+import type { Registration, Event } from '@event-platform/shared';
+
+const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787';
+
+interface RegistrationWithEvent extends Registration {
+  event?: Event;
+}
+
+let registrations: RegistrationWithEvent[] = [];
+let isLoggedIn = false;
+
+try {
+  const token = Astro.cookies.get('sb-access-token')?.value;
+  if (!token) {
+    return Astro.redirect('/login');
+  }
+  isLoggedIn = true;
+
+  const res = await fetch(`${API_BASE}/api/my/registrations`, {
+    headers: { 'Authorization': `Bearer ${token}` },
+  });
+
+  if (res.ok) {
+    const json = await res.json();
+    registrations = json.data ?? [];
+  }
+} catch (err) {
+  console.error('Failed to fetch registrations:', err);
+}
+
+const statusVariant: Record<string, 'default' | 'success' | 'warning' | 'danger' | 'info'> = {
+  confirmed: 'success',
+  waitlisted: 'warning',
+  cancelled: 'danger',
+  pending: 'default',
+  checked_in: 'info',
+};
+
+const statusLabel: Record<string, string> = {
+  confirmed: '参加確定',
+  waitlisted: '待機中',
+  cancelled: 'キャンセル',
+  pending: '支払い待ち',
+  checked_in: 'チェックイン済',
+};
+
+const formatDate = (dateStr: string): string => {
+  const date = new Date(dateStr);
+  return date.toLocaleDateString('ja-JP', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+---
+
+<Layout title="我的登録一覧 | イベント管理プラットフォーム">
+  <div class="max-w-4xl mx-auto px-4 py-8">
+    <div class="flex items-center justify-between mb-8">
+      <div>
+        <h1 class="text-2xl font-bold text-text-primary">我的登録一覧</h1>
+        <p class="text-sm text-text-secondary mt-1">登録したイベントの確認とQRコードの表示</p>
+      </div>
+      <Button variant="accent" size="sm" href="/events">
+        イベントを探す
+      </Button>
+    </div>
+
+    {registrations.length === 0 ? (
+      <div class="text-center py-16">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="mx-auto text-text-secondary mb-4">
+          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+          <line x1="16" y1="2" x2="16" y2="6"/>
+          <line x1="8" y1="2" x2="8" y2="6"/>
+          <line x1="3" y1="10" x2="21" y2="10"/>
+        </svg>
+        <p class="text-text-secondary body-lg mb-4">まだ登録したイベントはありません</p>
+        <Button variant="accent" href="/events">イベントを探す</Button>
+      </div>
+    ) : (
+      <div class="flex flex-col gap-4">
+        {registrations.map((reg) => (
+          <div
+            class="p-5 rounded-md flex flex-col sm:flex-row sm:items-center gap-4"
+            style="background-color: var(--color-surface-elevated); border: 1px solid var(--color-border-default);"
+          >
+            {/* Event info */}
+            <div class="flex-1 min-w-0">
+              <h3 class="text-base font-semibold text-text-primary truncate">
+                {reg.event?.title ?? 'イベント情報なし'}
+              </h3>
+              {reg.event && (
+                <p class="text-sm text-text-secondary mt-1">
+                  {formatDate(reg.event.start_at)}
+                  {reg.event.venue_name && ` — ${reg.event.venue_name}`}
+                </p>
+              )}
+              <div class="mt-2">
+                <Badge variant={statusVariant[reg.status] ?? 'default'}>
+                  {statusLabel[reg.status] ?? reg.status}
+                </Badge>
+              </div>
+            </div>
+
+            {/* QR Code button */}
+            {reg.status !== 'cancelled' && reg.qr_token && (
+              <div class="flex items-center gap-2">
+                <button
+                  class="qr-toggle-btn px-4 py-2 text-sm font-medium rounded-sm transition-colors"
+                  style="background-color: var(--color-accent-blue); color: var(--color-text-on-accent, #fff);"
+                  data-registration-id={reg.id}
+                  data-token={reg.qr_token}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="inline-block mr-1.5">
+                    <rect x="3" y="3" width="7" height="7" />
+                    <rect x="14" y="3" width="7" height="7" />
+                    <rect x="3" y="14" width="7" height="7" />
+                    <rect x="14" y="14" width="3" height="3" />
+                  </svg>
+                  QRコード
+                </button>
+                {reg.status === 'checked_in' && (
+                  <Badge variant="info">チェックイン済</Badge>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    )}
+
+    <!-- QR Code Modal -->
+    <div
+      id="qr-modal"
+      class="fixed inset-0 z-50 hidden items-center justify-center"
+      style="background-color: rgba(0,0,0,0.5);"
+    >
+      <div
+        class="relative max-w-md w-full mx-4 p-6 rounded-md"
+        style="background-color: var(--color-surface-elevated); border: 1px solid var(--color-border-default);"
+      >
+        <button
+          id="qr-modal-close"
+          class="absolute top-3 right-3 text-text-secondary hover:text-text-primary transition-colors"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+        <h3 class="text-lg font-semibold text-text-primary mb-4">QRコード</h3>
+        <div id="qr-modal-content" class="flex justify-center">
+          <!-- QR code will be rendered here -->
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const modal = document.getElementById('qr-modal') as HTMLDivElement;
+      const modalContent = document.getElementById('qr-modal-content') as HTMLDivElement;
+      const modalClose = document.getElementById('qr-modal-close') as HTMLButtonElement;
+
+      document.querySelectorAll('.qr-toggle-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const token = (btn as HTMLElement).dataset.token ?? '';
+          const regId = (btn as HTMLElement).dataset.registrationId ?? '';
+
+          // Show modal
+          modal.classList.remove('hidden');
+          modal.classList.add('flex');
+          modalContent.innerHTML = '';
+
+          // Dynamically import and render QR code
+          import('qrcode').then((QRCodeLib) => {
+            QRCodeLib.toString(token, {
+              type: 'svg',
+              errorCorrectionLevel: 'M',
+              margin: 2,
+              width: 256,
+            }).then((svg: string) => {
+              modalContent.innerHTML = `
+                <div style="display:flex;flex-direction:column;align-items:center;gap:16px;">
+                  <div style="padding:16px;background:var(--color-surface-base);border:1px solid var(--color-border-default);border-radius:4px;">
+                    ${svg}
+                  </div>
+                  <p style="font-size:0.75rem;color:var(--color-text-secondary);font-family:monospace;">${token}</p>
+                </div>
+              `;
+            });
+          });
+        });
+      });
+
+      modalClose?.addEventListener('click', () => {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+      });
+
+      modal?.addEventListener('click', (e) => {
+        if (e.target === modal) {
+          modal.classList.add('hidden');
+          modal.classList.remove('flex');
+        }
+      });
+    </script>
+  </div>
+</Layout>

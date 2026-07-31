@@ -7,6 +7,7 @@ import { upload } from './routes/upload.js';
 import { registrations } from './routes/registrations.js';
 import { tickets } from './routes/tickets.js';
 import { payments, handleStripeWebhookRoute, getEventPaymentsRoute } from './routes/payments.js';
+import { checkin } from './routes/checkin.js';
 import { authMiddleware, optionalAuthMiddleware } from './middleware/auth.js';
 import { CheckInCoordinator } from './durable-objects/check-in.js';
 import type { Env } from './services/supabase.js';
@@ -55,6 +56,27 @@ app.route('/api/payments', payments);
 
 // Event payments (organizer only, auth required)
 app.get('/api/events/:slug/payments', authMiddleware, getEventPaymentsRoute);
+
+// Check-in routes (auth required — staff/organizer)
+app.use('/api/events/:slug/check-in/*', authMiddleware);
+app.use('/api/registrations/:id/qr-code', authMiddleware);
+app.route('/api', checkin);
+
+// WebSocket route for real-time check-in dashboard
+app.get('/ws/event/:eventId/checkin', async (c) => {
+  const eventId = c.req.param('eventId');
+  if (!eventId) {
+    return c.json({ success: false, error: { code: 'BAD_REQUEST', message: 'eventId required' } }, 400);
+  }
+
+  const doId = c.env.CHECK_IN_COORDINATOR.idFromName(eventId);
+  const doStub = c.env.CHECK_IN_COORDINATOR.get(doId);
+
+  // Forward the WebSocket upgrade request to the Durable Object
+  const url = new URL(c.req.url);
+  url.searchParams.set('eventId', eventId);
+  return doStub.fetch(new Request(url.toString(), c.req.raw));
+});
 
 // Upload routes (require authentication)
 app.use('/api/upload/*', authMiddleware);

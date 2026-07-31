@@ -22,12 +22,14 @@
     "@tanstack/react-query": "^5.80.0",
     "@stripe/stripe-js": "^7.0.0",
     "@stripe/react-stripe-js": "^3.0.0",
+    "qrcode": "^1.5.4",
     "@event-platform/shared": "workspace:*",
     "@event-platform/api-client": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^7.0.2",
     "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0"
+    "@types/react-dom": "^19.0.0",
+    "@types/qrcode": "^1.5.5"
   }
 }

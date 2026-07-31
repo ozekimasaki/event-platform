@@ -17,11 +17,13 @@
     "jose": "^6.0.0",
     "@supabase/supabase-js": "^2.50.0",
     "stripe": "^22.3.2",
+    "qrcode": "^1.5.4",
     "@event-platform/shared": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^7.0.2",
     "wrangler": "^4.0.0",
-    "@cloudflare/workers-types": "^4.20250730.0"
+    "@cloudflare/workers-types": "^4.20250730.0",
+    "@types/qrcode": "^1.5.5"
   }
 }

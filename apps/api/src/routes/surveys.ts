@@ -19,13 +19,13 @@ import {
 
 // ============================================
 // EVENT-SCOPED SURVEY ROUTES
-// Mounted at: /api/events/:eventId/surveys
+// Mounted at: /api/events  (patterns: /:eventId/surveys/...)
 // ============================================
 
 const eventSurveys = new Hono();
 
-// GET /api/events/:eventId/surveys - List surveys for event (public for active, auth for all)
-eventSurveys.get('/', async (c) => {
+// GET /api/events/:eventId/surveys - List surveys for event
+eventSurveys.get('/:eventId/surveys', async (c) => {
   const eventId = c.req.param('eventId');
   const supabase = getSupabaseClient(c.env);
 
@@ -38,7 +38,7 @@ eventSurveys.get('/', async (c) => {
 });
 
 // POST /api/events/:eventId/surveys - Create survey (organizer only)
-eventSurveys.post('/', async (c) => {
+eventSurveys.post('/:eventId/surveys', async (c) => {
   const authCtx = c as unknown as AuthContext;
   const user = (authCtx as any).get('user') as { id: string };
   if (!user) {
@@ -62,7 +62,6 @@ eventSurveys.post('/', async (c) => {
     return c.json({ success: false, error: { code: 'NOT_FOUND', message: 'Event not found' } }, 404);
   }
 
-  // Check organizer ownership via organizers table
   const { data: organizer } = await supabase
     .from('organizers')
     .select('id')
@@ -176,7 +175,6 @@ surveys.delete('/:id', async (c) => {
   const id = c.req.param('id');
   const supabase = getSupabaseClient(c.env, (authCtx as any).get('jwt'));
 
-  // Verify ownership
   const survey = await getSurveyById(id, supabase);
   if (!survey) {
     return c.json({ success: false, error: { code: 'NOT_FOUND', message: 'Survey not found' } }, 404);
@@ -243,7 +241,6 @@ surveys.get('/:id/stats', async (c) => {
   const id = c.req.param('id');
   const supabase = getSupabaseClient(c.env, (authCtx as any).get('jwt'));
 
-  // Verify ownership
   const survey = await getSurveyById(id, supabase);
   if (!survey) {
     return c.json({ success: false, error: { code: 'NOT_FOUND', message: 'Survey not found' } }, 404);

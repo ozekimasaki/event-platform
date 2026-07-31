@@ -17,6 +17,7 @@ import { webhooks } from './routes/webhooks.js';
 import { apiKeys } from './routes/api-keys.js';
 import { search } from './routes/search.js';
 import { community } from './routes/community.js';
+import { eventSurveys, surveys } from './routes/surveys.js';
 import { authMiddleware, optionalAuthMiddleware } from './middleware/auth.js';
 import { CheckInCoordinator } from './durable-objects/check-in.js';
 import { EventChatRoom } from './durable-objects/chat.js';
@@ -77,6 +78,14 @@ app.route('/api/articles', articles);
 app.use('/api/organizers/*', optionalAuthMiddleware);
 app.route('/api/organizers', community);
 app.route('/api', community);
+
+// Survey routes (event-scoped: GET is public, POST is auth-required checked inside)
+app.use('/api/events/*', optionalAuthMiddleware);
+app.route('/api/events', eventSurveys);
+
+// Survey routes (survey-scoped: mixed public/auth)
+app.use('/api/surveys/*', optionalAuthMiddleware);
+app.route('/api/surveys', surveys);
 
 // Support routes (mixed: some public FAQ, some auth-required tickets)
 app.route('/api', support);

@@ -1,0 +1,330 @@
+---
+import DashboardLayout from '../layout.astro';
+import Button from '../../../components/ui/Button.astro';
+import Badge from '../../../components/ui/Badge.astro';
+import Card from '../../../components/ui/Card.astro';
+
+const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787';
+const token = Astro.cookies.get('sb-token')?.value || '';
+
+const page = Number(Astro.url.searchParams.get('page') || '1');
+const statusFilter = Astro.url.searchParams.get('status') || '';
+const limit = 20;
+
+let logs: any[] = [];
+let totalPages = 1;
+let stats: any = null;
+
+const headers = { 'Authorization': `Bearer ${token}` };
+
+// Fetch stats
+try {
+  const statsRes = await fetch(`${API_BASE}/api/email/stats`, { headers });
+  if (statsRes.ok) {
+    const statsJson = await statsRes.json();
+    stats = statsJson.data;
+  }
+} catch (err) {
+  console.error('Failed to fetch email stats:', err);
+}
+
+// Fetch logs
+try {
+  const params = new URLSearchParams();
+  params.set('page', String(page));
+  params.set('limit', String(limit));
+  if (statusFilter) params.set('status', statusFilter);
+
+  const res = await fetch(`${API_BASE}/api/email/logs?${params.toString()}`, { headers });
+  if (res.ok) {
+    const json = await res.json();
+    logs = json.data || [];
+    totalPages = json.pagination?.total_pages || 1;
+  }
+} catch (err) {
+  console.error('Failed to fetch email logs:', err);
+}
+
+const statusVariant: Record<string, 'default' | 'success' | 'warning' | 'danger' | 'info'> = {
+  sent: 'success',
+  delivered: 'success',
+  pending: 'warning',
+  failed: 'danger',
+  bounced: 'danger',
+};
+
+const statusLabel: Record<string, string> = {
+  sent: '送信済み',
+  delivered: '配信完了',
+  pending: '送信待ち',
+  failed: '送信失敗',
+  bounced: 'バウンス',
+};
+
+const statusTabs = [
+  { key: '', label: 'すべて' },
+  { key: 'sent', label: '送信済み' },
+  { key: 'delivered', label: '配信完了' },
+  { key: 'pending', label: '送信待ち' },
+  { key: 'failed', label: '失敗' },
+];
+
+const formatDate = (dateStr: string): string => {
+  return new Date(dateStr).toLocaleDateString('ja-JP', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+---
+
+<DashboardLayout
+  title="メール配信履歴"
+  breadcrumbs={[{ label: 'メール配信' }]}
+>
+  <!-- Stats Cards -->
+  {stats && (
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <Card padding="md">
+        <div class="flex items-start justify-between">
+          <div>
+            <p class="caption-mono text-text-secondary mb-1">総送信数</p>
+            <p class="text-2xl font-bold text-text-primary">{stats.total_sent ?? 0}</p>
+          </div>
+          <div class="w-10 h-10 rounded-sm bg-accent-blue/10 flex items-center justify-center">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent-blue">
+              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+              <polyline points="22,6 12,13 2,6" />
+            </svg>
+          </div>
+        </div>
+      </Card>
+
+      <Card padding="md">
+        <div class="flex items-start justify-between">
+          <div>
+            <p class="caption-mono text-text-secondary mb-1">配信完了</p>
+            <p class="text-2xl font-bold text-text-primary">{stats.total_delivered ?? 0}</p>
+            <p class="text-xs text-text-secondary mt-1">
+              配信率 {stats.total_sent > 0 ? Math.round(((stats.total_delivered ?? 0) / stats.total_sent) * 100) : 0}%
+            </p>
+          </div>
+          <div class="w-10 h-10 rounded-sm bg-[color-mix(in_srgb,var(--color-success)_15%,transparent)] flex items-center justify-center">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-success">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          </div>
+        </div>
+      </Card>
+
+      <Card padding="md">
+        <div class="flex items-start justify-between">
+          <div>
+            <p class="caption-mono text-text-secondary mb-1">送信失敗</p>
+            <p class="text-2xl font-bold text-text-primary">{stats.total_failed ?? 0}</p>
+          </div>
+          <div class="w-10 h-10 rounded-sm bg-danger/10 flex items-center justify-center">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-danger">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="15" y1="9" x2="9" y2="15" />
+              <line x1="9" y1="9" x2="15" y2="15" />
+            </svg>
+          </div>
+        </div>
+      </Card>
+
+      <Card padding="md">
+        <div class="flex items-start justify-between">
+          <div>
+            <p class="caption-mono text-text-secondary mb-1">今月の送信</p>
+            <p class="text-2xl font-bold text-text-primary">{stats.monthly_sent ?? 0}</p>
+          </div>
+          <div class="w-10 h-10 rounded-sm bg-accent-gold/10 flex items-center justify-center">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent-gold">
+              <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+              <polyline points="17 6 23 6 23 12" />
+            </svg>
+          </div>
+        </div>
+      </Card>
+    </div>
+  )}
+
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6 flex-wrap gap-4">
+    <h1 class="heading-lg text-text-primary">メール配信履歴</h1>
+    <Button variant="accent" href="/dashboard/email/compose">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="12" y1="5" x2="12" y2="19" />
+        <line x1="5" y1="12" x2="19" y2="12" />
+      </svg>
+      新規メール作成
+    </Button>
+  </div>
+
+  <!-- Status Tabs -->
+  <div class="flex gap-1 mb-6 border-b border-border-default overflow-x-auto">
+    {statusTabs.map((tab) => (
+      <a
+        href={`/dashboard/email${tab.key ? `?status=${tab.key}` : ''}`}
+        class:list={[
+          'px-4 py-2.5 text-sm font-medium border-b-2 transition-colors no-underline -mb-px whitespace-nowrap',
+          statusFilter === tab.key
+            ? 'border-accent-blue text-accent-blue'
+            : 'border-transparent text-text-secondary hover:text-text-primary hover:border-border-default',
+        ]}
+      >
+        {tab.label}
+      </a>
+    ))}
+  </div>
+
+  <!-- Logs Table -->
+  {logs.length > 0 ? (
+    <div class="border border-border-default rounded-md overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="bg-surface-soft border-b border-border-default">
+              <th class="text-left px-4 py-3 font-medium text-text-secondary">件名</th>
+              <th class="text-left px-4 py-3 font-medium text-text-secondary hidden md:table-cell">宛先</th>
+              <th class="text-left px-4 py-3 font-medium text-text-secondary">ステータス</th>
+              <th class="text-left px-4 py-3 font-medium text-text-secondary hidden lg:table-cell">送信日時</th>
+              <th class="text-right px-4 py-3 font-medium text-text-secondary">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {logs.map((log) => (
+              <tr class="border-b border-border-default last:border-b-0 hover:bg-surface-soft transition-colors">
+                <td class="px-4 py-3">
+                  <span class="font-medium text-text-primary">{log.subject || '(件名なし)'}</span>
+                </td>
+                <td class="px-4 py-3 text-text-secondary hidden md:table-cell">
+                  {log.recipient_email || log.recipient || '-'}
+                </td>
+                <td class="px-4 py-3">
+                  <Badge variant={statusVariant[log.status] ?? 'default'}>
+                    {statusLabel[log.status] ?? log.status}
+                  </Badge>
+                </td>
+                <td class="px-4 py-3 text-text-secondary hidden lg:table-cell">
+                  {log.sent_at ? formatDate(log.sent_at) : '-'}
+                </td>
+                <td class="px-4 py-3">
+                  <div class="flex items-center justify-end gap-1">
+                    <button
+                      type="button"
+                      class="inline-flex items-center justify-center w-8 h-8 min-w-[36px] min-h-[36px] rounded-sm text-text-secondary hover:text-accent-blue hover:bg-surface-medium transition-colors"
+                      title="詳細表示"
+                      data-log-id={log.id}
+                      onclick="handleViewDetail(this)"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  ) : (
+    <div class="text-center py-16 border border-border-default rounded-md">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="mx-auto text-text-secondary opacity-40 mb-4">
+        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+        <polyline points="22,6 12,13 2,6" />
+      </svg>
+      <p class="heading-sm text-text-secondary mb-2">配信履歴がありません</p>
+      <p class="body-sm text-text-secondary mb-4">メールを送信するとここに履歴が表示されます</p>
+      <Button variant="accent" href="/dashboard/email/compose">新規メール作成</Button>
+    </div>
+  )}
+
+  <!-- Pagination -->
+  {totalPages > 1 && (
+    <div class="flex items-center justify-center gap-3 mt-6">
+      {page > 1 && (
+        <a href={`/dashboard/email${statusFilter ? `?status=${statusFilter}` : ''}&page=${page - 1}`} class="px-3 py-1.5 text-sm border border-border-default rounded-sm text-text-primary hover:bg-surface-soft transition-colors no-underline min-h-[36px] inline-flex items-center">
+          ← 前へ
+        </a>
+      )}
+      <span class="caption-mono text-text-secondary">{page} / {totalPages}</span>
+      {page < totalPages && (
+        <a href={`/dashboard/email${statusFilter ? `?status=${statusFilter}` : ''}&page=${page + 1}`} class="px-3 py-1.5 text-sm border border-border-default rounded-sm text-text-primary hover:bg-surface-soft transition-colors no-underline min-h-[36px] inline-flex items-center">
+          次へ →
+        </a>
+      )}
+    </div>
+  )}
+
+  <!-- Detail Modal -->
+  <div id="detail-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50" onclick="closeModal(event)">
+    <div class="bg-surface-elevated border border-border-default rounded-md p-6 max-w-lg w-full mx-4 max-h-[80vh] overflow-auto" onclick="event.stopPropagation()">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="heading-md text-text-primary">配信詳細</h3>
+        <button type="button" class="text-text-secondary hover:text-text-primary transition-colors" onclick="document.getElementById('detail-modal').classList.add('hidden');document.getElementById('detail-modal').classList.remove('flex')">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      </div>
+      <div id="detail-content" class="text-sm text-text-primary">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+  </div>
+</DashboardLayout>
+
+<script>
+  async function handleViewDetail(btn: HTMLButtonElement) {
+    const logId = btn.dataset.logId;
+    if (!logId) return;
+
+    const modal = document.getElementById('detail-modal')!;
+    const content = document.getElementById('detail-content')!;
+    content.innerHTML = '<p class="text-text-secondary">読み込み中...</p>';
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+
+    try {
+      const token = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('sb-token='))
+        ?.split('=')[1];
+
+      const res = await fetch(`${import.meta.env.PUBLIC_API_URL || 'http://localhost:8787'}/api/email/logs/${logId}`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+
+      if (res.ok) {
+        const json = await res.json();
+        const log = json.data;
+        content.innerHTML = `
+          <div class="flex flex-col gap-3">
+            <div><span class="text-text-secondary font-medium">件名:</span> ${log.subject || '-'}</div>
+            <div><span class="text-text-secondary font-medium">宛先:</span> ${log.recipient_email || log.recipient || '-'}</div>
+            <div><span class="text-text-secondary font-medium">ステータス:</span> ${log.status || '-'}</div>
+            <div><span class="text-text-secondary font-medium">送信日時:</span> ${log.sent_at ? new Date(log.sent_at).toLocaleString('ja-JP') : '-'}</div>
+            ${log.error_message ? `<div class="text-danger"><span class="font-medium">エラー:</span> ${log.error_message}</div>` : ''}
+          </div>
+        `;
+      } else {
+        content.innerHTML = '<p class="text-danger">詳細の取得に失敗しました</p>';
+      }
+    } catch {
+      content.innerHTML = '<p class="text-danger">エラーが発生しました</p>';
+    }
+  }
+
+  function closeModal(event: MouseEvent) {
+    const modal = document.getElementById('detail-modal')!;
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+  }
+</script>

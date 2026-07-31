@@ -1,0 +1,253 @@
+---
+import DashboardLayout from '../../layout.astro';
+
+const API_BASE = import.meta.env.PUBLIC_API_URL ?? 'http://localhost:8787';
+
+let webhooks: any[] = [];
+let error = '';
+
+try {
+  const token = Astro.cookies.get('sb-access-token')?.value;
+  if (token) {
+    const res = await fetch(`${API_BASE}/api/webhooks`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const json = await res.json();
+    if (json.success) {
+      webhooks = json.data;
+    }
+  }
+} catch (e) {
+  error = 'Webhookの取得に失敗しました';
+}
+
+const EVENT_LABELS: Record<string, string> = {
+  'event.created': 'イベント作成',
+  'event.updated': 'イベント更新',
+  'event.published': 'イベント公開',
+  'event.cancelled': 'イベントキャンセル',
+  'registration.created': '参加登録',
+  'registration.cancelled': '登録キャンセル',
+  'registration.checked_in': 'チェックイン',
+  'payment.succeeded': '決済成功',
+  'payment.refunded': '返金',
+};
+---
+
+<DashboardLayout title="Webhook管理" breadcrumbs={[{ label: '設定' }, { label: 'Webhook管理' }]}>
+  <div class="max-w-4xl mx-auto space-y-6">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+      <div>
+        <h1 class="text-2xl font-bold text-text-primary">Webhook管理</h1>
+        <p class="text-sm text-text-secondary mt-1">イベント発生時に外部サービスへ通知を配信します</p>
+      </div>
+      <button
+        id="create-webhook-btn"
+        class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium text-sm"
+      >
+        新規登録
+      </button>
+    </div>
+
+    {error && (
+      <div class="p-4 bg-danger-50 border border-danger-200 rounded-lg text-danger-700 text-sm">
+        {error}
+      </div>
+    )}
+
+    <!-- Webhooks List -->
+    <div class="bg-surface-base border border-border-default rounded-xl overflow-hidden">
+      {webhooks.length === 0 ? (
+        <div class="p-8 text-center text-text-secondary">
+          <p class="text-lg mb-2">Webhookがまだ登録されていません</p>
+          <p class="text-sm">「新規登録」ボタンでWebhookを追加してください</p>
+        </div>
+      ) : (
+        <div class="divide-y divide-border-default">
+          {webhooks.map((wh: any) => (
+            <div class="p-4 flex items-center justify-between">
+              <div class="space-y-1">
+                <div class="flex items-center gap-2">
+                  <span class="font-medium text-text-primary text-sm font-mono truncate max-w-xs">{wh.url}</span>
+                  <span class={`px-2 py-0.5 rounded-full text-xs font-medium ${wh.is_active ? 'bg-success-100 text-success-700' : 'bg-gray-100 text-gray-500'}`}>
+                    {wh.is_active ? '有効' : '無効'}
+                  </span>
+                </div>
+                <div class="flex flex-wrap gap-1">
+                  {wh.events?.map((evt: string) => (
+                    <span class="px-2 py-0.5 bg-primary-50 text-primary-700 rounded text-xs">
+                      {EVENT_LABELS[evt] ?? evt}
+                    </span>
+                  ))}
+                </div>
+                <div class="text-xs text-text-secondary">
+                  作成日: {new Date(wh.created_at).toLocaleDateString('ja-JP')}
+                </div>
+              </div>
+              <div class="flex items-center gap-2">
+                <button
+                  class="test-webhook-btn px-3 py-1.5 text-sm text-primary-600 border border-primary-300 rounded-lg hover:bg-primary-50 transition-colors"
+                  data-webhook-id={wh.id}
+                >
+                  テスト配信
+                </button>
+                <button
+                  class="delete-webhook-btn px-3 py-1.5 text-sm text-danger-600 border border-danger-300 rounded-lg hover:bg-danger-50 transition-colors"
+                  data-webhook-id={wh.id}
+                >
+                  削除
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+
+    <!-- Create Modal -->
+    <div id="create-modal" class="fixed inset-0 z-50 hidden">
+      <div class="absolute inset-0 bg-black/50" id="modal-backdrop"></div>
+      <div class="absolute inset-0 flex items-center justify-center p-4">
+        <div class="bg-surface-base rounded-xl shadow-xl max-w-md w-full p-6 space-y-4">
+          <h2 class="text-lg font-bold text-text-primary">Webhook新規登録</h2>
+          <form id="create-webhook-form" class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-text-primary mb-1">配信先URL</label>
+              <input
+                type="url"
+                name="url"
+                required
+                placeholder="https://example.com/webhook"
+                class="w-full px-3 py-2 border border-border-default rounded-lg bg-surface-base text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-text-primary mb-1">受信イベント</label>
+              <div class="space-y-2 max-h-48 overflow-y-auto">
+                {Object.entries(EVENT_LABELS).map(([value, label]) => (
+                  <label class="flex items-center gap-2 text-sm text-text-secondary">
+                    <input type="checkbox" name="events" value={value} class="rounded border-border-default" />
+                    <span>{label}</span>
+                    <code class="text-xs text-text-secondary">({value})</code>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-text-primary mb-1">署名シークレット（任意、8文字以上）</label>
+              <input
+                type="text"
+                name="secret"
+                placeholder="未入力の場合は自動生成されます"
+                class="w-full px-3 py-2 border border-border-default rounded-lg bg-surface-base text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+            </div>
+            <div class="flex gap-2 justify-end pt-2">
+              <button type="button" id="cancel-create" class="px-4 py-2 text-sm text-text-secondary border border-border-default rounded-lg hover:bg-surface-hover">
+                キャンセル
+              </button>
+              <button type="submit" class="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700">
+                登録
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script define:vars={{ API_BASE }}>
+    (function() {
+      const createBtn = document.getElementById('create-webhook-btn');
+      const createModal = document.getElementById('create-modal');
+      const cancelCreate = document.getElementById('cancel-create');
+      const createForm = document.getElementById('create-webhook-form');
+
+      createBtn?.addEventListener('click', () => createModal?.classList.remove('hidden'));
+      cancelCreate?.addEventListener('click', () => createModal?.classList.add('hidden'));
+      document.getElementById('modal-backdrop')?.addEventListener('click', () => createModal?.classList.add('hidden'));
+
+      // Create webhook
+      createForm?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(createForm);
+        const url = formData.get('url') as string;
+        const events = formData.getAll('events') as string[];
+        const secret = formData.get('secret') as string;
+
+        if (events.length === 0) {
+          alert('少なくとも1つのイベントを選択してください');
+          return;
+        }
+
+        const token = document.cookie.split('; ').find(c => c.startsWith('sb-access-token='))?.split('=')[1];
+        const res = await fetch(`${API_BASE}/api/webhooks`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            url,
+            events,
+            secret: secret || undefined,
+          }),
+        });
+
+        const json = await res.json();
+        if (json.success) {
+          location.reload();
+        } else {
+          alert(json.error?.message || 'エラーが発生しました');
+        }
+      });
+
+      // Test webhook
+      document.querySelectorAll('.test-webhook-btn').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const webhookId = btn.getAttribute('data-webhook-id');
+          const token = document.cookie.split('; ').find(c => c.startsWith('sb-access-token='))?.split('=')[1];
+          btn.textContent = '配信中...';
+          (btn as HTMLButtonElement).disabled = true;
+          try {
+            const res = await fetch(`${API_BASE}/api/webhooks/${webhookId}/test`, {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${token}` },
+            });
+            const json = await res.json();
+            if (json.success) {
+              alert('テスト配信が完了しました');
+            } else {
+              alert(json.error?.message || 'エラーが発生しました');
+            }
+          } catch {
+            alert('配信に失敗しました');
+          } finally {
+            btn.textContent = 'テスト配信';
+            (btn as HTMLButtonElement).disabled = false;
+          }
+        });
+      });
+
+      // Delete webhook
+      document.querySelectorAll('.delete-webhook-btn').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          if (!confirm('このWebhookを削除しますか？')) return;
+          const webhookId = btn.getAttribute('data-webhook-id');
+          const token = document.cookie.split('; ').find(c => c.startsWith('sb-access-token='))?.split('=')[1];
+          const res = await fetch(`${API_BASE}/api/webhooks/${webhookId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` },
+          });
+          const json = await res.json();
+          if (json.success) {
+            location.reload();
+          } else {
+            alert(json.error?.message || 'エラーが発生しました');
+          }
+        });
+      });
+    })();
+  </script>
+</DashboardLayout>

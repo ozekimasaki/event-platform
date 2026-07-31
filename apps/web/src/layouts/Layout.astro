@@ -35,6 +35,7 @@ const { title = 'Event Platform', description = 'イベント管理プラット�
     <script is:inline set:html={themeInitScript} />
 
     <title>{title}</title>
+    <slot name="head" />
   </head>
   <body class="min-h-screen bg-surface-base text-text-primary">
     <NavBar>

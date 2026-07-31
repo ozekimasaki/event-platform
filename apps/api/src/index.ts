@@ -14,7 +14,9 @@ import { chat } from './routes/chat.js';
 import { articles } from './routes/articles.js';
 import { publicApi } from './routes/public-api.js';
 import { webhooks } from './routes/webhooks.js';
+import { apiKeys } from './routes/api-keys.js';
 import { search } from './routes/search.js';
+import { community } from './routes/community.js';
 import { authMiddleware, optionalAuthMiddleware } from './middleware/auth.js';
 import { CheckInCoordinator } from './durable-objects/check-in.js';
 import { EventChatRoom } from './durable-objects/chat.js';
@@ -71,6 +73,11 @@ app.route('/api/search', search);
 app.use('/api/articles/*', optionalAuthMiddleware);
 app.route('/api/articles', articles);
 
+// Community routes (organizer profiles, followers, event series)
+app.use('/api/organizers/*', optionalAuthMiddleware);
+app.route('/api/organizers', community);
+app.route('/api', community);
+
 // Support routes (mixed: some public FAQ, some auth-required tickets)
 app.route('/api', support);
 
@@ -120,9 +127,11 @@ app.get('/ws/event/:eventId/chat', async (c) => {
 // Public API routes (no JWT auth — uses API key auth per-route)
 app.route('/public/api', publicApi);
 
-// Webhook management routes (auth required)
-app.use('/api/webhooks/*', authMiddleware);
+// Webhook management routes (auth checked per-route inside webhooks router)
 app.route('/api/webhooks', webhooks);
+
+// API key management routes (auth checked per-route)
+app.route('/api/api-keys', apiKeys);
 
 // Upload routes (require authentication)
 app.use('/api/upload/*', authMiddleware);

@@ -109,7 +109,7 @@ const formatDate = (dateStr: string | null): string => {
       </div>
       <Button type="submit" variant="secondary" size="sm">検索</Button>
       {searchQuery && (
-        <a href={`/dashboard/articles{statusFilter !== 'all' ? `?status=${statusFilter}` : ''}`}" class="text-sm text-text-secondary hover:text-text-primary transition-colors no-underline self-center">
+        <a href={`/dashboard/articles${statusFilter !== 'all' ? `?status=${statusFilter}` : ''}`} class="text-sm text-text-secondary hover:text-text-primary transition-colors no-underline self-center">
           クリア
         </a>
       )}

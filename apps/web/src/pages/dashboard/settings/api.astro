@@ -1,0 +1,244 @@
+---
+import DashboardLayout from '../../layout.astro';
+
+const API_BASE = import.meta.env.PUBLIC_API_URL ?? 'http://localhost:8787';
+
+let apiKeys: any[] = [];
+let error = '';
+
+try {
+  const token = Astro.cookies.get('sb-access-token')?.value;
+  if (token) {
+    const res = await fetch(`${API_BASE}/api/api-keys`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const json = await res.json();
+    if (json.success) {
+      apiKeys = json.data;
+    }
+  }
+} catch (e) {
+  error = 'APIキーの取得に失敗しました';
+}
+---
+
+<DashboardLayout title="APIキー管理" breadcrumbs={[{ label: '設定' }, { label: 'APIキー管理' }]}>
+  <div class="max-w-4xl mx-auto space-y-6">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+      <div>
+        <h1 class="text-2xl font-bold text-text-primary">APIキー管理</h1>
+        <p class="text-sm text-text-secondary mt-1">Public APIにアクセスするためのAPIキーを管理します</p>
+      </div>
+      <button
+        id="create-key-btn"
+        class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium text-sm"
+      >
+        新規発行
+      </button>
+    </div>
+
+    {error && (
+      <div class="p-4 bg-danger-50 border border-danger-200 rounded-lg text-danger-700 text-sm">
+        {error}
+      </div>
+    )}
+
+    <!-- API Keys List -->
+    <div class="bg-surface-base border border-border-default rounded-xl overflow-hidden">
+      {apiKeys.length === 0 ? (
+        <div class="p-8 text-center text-text-secondary">
+          <p class="text-lg mb-2">APIキーがまだありません</p>
+          <p class="text-sm">「新規発行」ボタンでAPIキーを作成してください</p>
+        </div>
+      ) : (
+        <div class="divide-y divide-border-default">
+          {apiKeys.map((key: any) => (
+            <div class="p-4 flex items-center justify-between">
+              <div class="space-y-1">
+                <div class="flex items-center gap-2">
+                  <span class="font-medium text-text-primary">{key.name}</span>
+                  <span class={`px-2 py-0.5 rounded-full text-xs font-medium ${key.is_active ? 'bg-success-100 text-success-700' : 'bg-gray-100 text-gray-500'}`}>
+                    {key.is_active ? '有効' : '失効済み'}
+                  </span>
+                </div>
+                <div class="text-sm text-text-secondary font-mono">{key.key_prefix}</div>
+                <div class="flex items-center gap-3 text-xs text-text-secondary">
+                  <span>スコープ: {key.scopes?.join(', ')}</span>
+                  {key.expires_at && <span>有効期限: {new Date(key.expires_at).toLocaleDateString('ja-JP')}</span>}
+                  {key.last_used_at && <span>最終使用: {new Date(key.last_used_at).toLocaleDateString('ja-JP')}</span>}
+                </div>
+              </div>
+              {key.is_active && (
+                <button
+                  class="revoke-btn px-3 py-1.5 text-sm text-danger-600 border border-danger-300 rounded-lg hover:bg-danger-50 transition-colors"
+                  data-key-id={key.id}
+                >
+                  失効
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+
+    <!-- Create Modal -->
+    <div id="create-modal" class="fixed inset-0 z-50 hidden">
+      <div class="absolute inset-0 bg-black/50" id="modal-backdrop"></div>
+      <div class="absolute inset-0 flex items-center justify-center p-4">
+        <div class="bg-surface-base rounded-xl shadow-xl max-w-md w-full p-6 space-y-4">
+          <h2 class="text-lg font-bold text-text-primary">APIキー新規発行</h2>
+          <form id="create-key-form" class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-text-primary mb-1">キー名</label>
+              <input
+                type="text"
+                name="name"
+                required
+                placeholder="例: 本番環境用"
+                class="w-full px-3 py-2 border border-border-default rounded-lg bg-surface-base text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-text-primary mb-1">スコープ</label>
+              <div class="space-y-2">
+                {['read:events', 'read:participants', 'write:events', 'read:registrations'].map((scope) => (
+                  <label class="flex items-center gap-2 text-sm text-text-secondary">
+                    <input type="checkbox" name="scopes" value={scope} class="rounded border-border-default" />
+                    <code>{scope}</code>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-text-primary mb-1">有効期限（任意）</label>
+              <input
+                type="datetime-local"
+                name="expires_at"
+                class="w-full px-3 py-2 border border-border-default rounded-lg bg-surface-base text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+            </div>
+            <div class="flex gap-2 justify-end pt-2">
+              <button type="button" id="cancel-create" class="px-4 py-2 text-sm text-text-secondary border border-border-default rounded-lg hover:bg-surface-hover">
+                キャンセル
+              </button>
+              <button type="submit" class="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700">
+                発行
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Created Key Display Modal -->
+    <div id="created-modal" class="fixed inset-0 z-50 hidden">
+      <div class="absolute inset-0 bg-black/50" id="created-backdrop"></div>
+      <div class="absolute inset-0 flex items-center justify-center p-4">
+        <div class="bg-surface-base rounded-xl shadow-xl max-w-md w-full p-6 space-y-4">
+          <h2 class="text-lg font-bold text-text-primary">APIキー発行完了</h2>
+          <p class="text-sm text-danger-600 font-medium">このキーは一度しか表示されません。必ずコピーして保管してください。</p>
+          <div class="p-3 bg-gray-50 border border-border-default rounded-lg">
+            <code id="created-key-value" class="text-sm font-mono break-all text-text-primary"></code>
+          </div>
+          <button id="copy-key-btn" class="w-full px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700">
+            キーをコピー
+          </button>
+          <button id="close-created" class="w-full px-4 py-2 text-sm text-text-secondary border border-border-default rounded-lg hover:bg-surface-hover">
+            閉じる
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script define:vars={{ API_BASE }}>
+    (function() {
+      const createBtn = document.getElementById('create-key-btn');
+      const createModal = document.getElementById('create-modal');
+      const createdModal = document.getElementById('created-modal');
+      const cancelCreate = document.getElementById('cancel-create');
+      const closeCreated = document.getElementById('close-created');
+      const copyKeyBtn = document.getElementById('copy-key-btn');
+      const createForm = document.getElementById('create-key-form');
+
+      // Open create modal
+      createBtn?.addEventListener('click', () => {
+        createModal?.classList.remove('hidden');
+      });
+
+      // Close modals
+      cancelCreate?.addEventListener('click', () => createModal?.classList.add('hidden'));
+      closeCreated?.addEventListener('click', () => createdModal?.classList.add('hidden'));
+      document.getElementById('modal-backdrop')?.addEventListener('click', () => createModal?.classList.add('hidden'));
+      document.getElementById('created-backdrop')?.addEventListener('click', () => createdModal?.classList.add('hidden'));
+
+      // Create API key
+      createForm?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(createForm);
+        const name = formData.get('name') as string;
+        const scopes = formData.getAll('scopes') as string[];
+        const expiresAt = formData.get('expires_at') as string;
+
+        if (scopes.length === 0) {
+          alert('少なくとも1つのスコープを選択してください');
+          return;
+        }
+
+        const token = document.cookie.split('; ').find(c => c.startsWith('sb-access-token='))?.split('=')[1];
+        const res = await fetch(`${API_BASE}/api/api-keys`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            name,
+            scopes,
+            expires_at: expiresAt ? new Date(expiresAt).toISOString() : undefined,
+          }),
+        });
+
+        const json = await res.json();
+        if (json.success) {
+          createModal?.classList.add('hidden');
+          document.getElementById('created-key-value')!.textContent = json.data.key;
+          createdModal?.classList.remove('hidden');
+        } else {
+          alert(json.error?.message || 'エラーが発生しました');
+        }
+      });
+
+      // Copy key
+      copyKeyBtn?.addEventListener('click', () => {
+        const keyValue = document.getElementById('created-key-value')?.textContent;
+        if (keyValue) {
+          navigator.clipboard.writeText(keyValue);
+          copyKeyBtn.textContent = 'コピーしました！';
+          setTimeout(() => { copyKeyBtn.textContent = 'キーをコピー'; }, 2000);
+        }
+      });
+
+      // Revoke key
+      document.querySelectorAll('.revoke-btn').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          if (!confirm('このAPIキーを失効しますか？この操作は取り消せません。')) return;
+          const keyId = btn.getAttribute('data-key-id');
+          const token = document.cookie.split('; ').find(c => c.startsWith('sb-access-token='))?.split('=')[1];
+          const res = await fetch(`${API_BASE}/api/api-keys/${keyId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` },
+          });
+          const json = await res.json();
+          if (json.success) {
+            location.reload();
+          } else {
+            alert(json.error?.message || 'エラーが発生しました');
+          }
+        });
+      });
+    })();
+  </script>
+</DashboardLayout>

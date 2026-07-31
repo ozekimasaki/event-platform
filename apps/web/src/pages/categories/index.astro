@@ -1,0 +1,114 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Card from '../../components/ui/Card.astro';
+
+const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787';
+
+let categories: { name: string; count: number }[] = [];
+
+try {
+  const res = await fetch(`${API_BASE}/api/search/categories`);
+  if (res.ok) {
+    const json = await res.json();
+    categories = json.data || [];
+  }
+} catch (err) {
+  console.error('Failed to fetch categories:', err);
+}
+
+// Category icon mapping
+const categoryIcons: Record<string, string> = {
+  'テクノロジー': '💻',
+  'ビジネス': '💼',
+  'デザイン': '🎨',
+  'マーケティング': '📢',
+  '音楽': '🎵',
+  'アート': '🖼️',
+  'フード': '🍽️',
+  'スポーツ': '⚽',
+  '教育': '📚',
+  'コミュニティ': '🤝',
+  'キャリア': '🚀',
+  'ネットワーキング': '🔗',
+};
+
+const getIcon = (name: string): string => {
+  return categoryIcons[name] || '📌';
+};
+---
+
+<Layout title="カテゴリ一覧" description="カテゴリからイベントを探す">
+  <main class="mx-auto max-w-7xl px-4 py-12 lg:px-6">
+    <!-- Page Header -->
+    <div class="mb-10">
+      <h1 class="display-md text-text-primary mb-2">カテゴリから探す</h1>
+      <p class="body-lg text-text-secondary">
+        興味のあるカテゴリを選んでイベントを探そう
+      </p>
+    </div>
+
+    <!-- Categories Grid -->
+    {categories.length > 0 ? (
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        {categories.map((cat) => (
+          <a
+            href={`/search?category=${encodeURIComponent(cat.name)}`}
+            class="no-underline group"
+          >
+            <Card padding="lg" class="hover:shadow-md transition-shadow cursor-pointer">
+              <div class="flex items-center gap-4">
+                <span class="text-3xl">{getIcon(cat.name)}</span>
+                <div class="flex-1 min-w-0">
+                  <h2 class="heading-sm text-text-primary group-hover:text-accent-blue transition-colors truncate">
+                    {cat.name}
+                  </h2>
+                  <p class="body-sm text-text-secondary">
+                    {cat.count}件のイベント
+                  </p>
+                </div>
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  class="text-text-secondary opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                >
+                  <polyline points="9 18 15 12 9 6" />
+                </svg>
+              </div>
+            </Card>
+          </a>
+        ))}
+      </div>
+    ) : (
+      <div class="text-center py-16">
+        <div class="text-text-secondary mb-4">
+          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="mx-auto opacity-40">
+            <rect x="3" y="3" width="7" height="7" />
+            <rect x="14" y="3" width="7" height="7" />
+            <rect x="14" y="14" width="7" height="7" />
+            <rect x="3" y="14" width="7" height="7" />
+          </svg>
+        </div>
+        <p class="heading-md text-text-secondary mb-2">カテゴリが見つかりませんでした</p>
+        <p class="body-sm text-text-secondary">イベントが公開されるとカテゴリが表示されます</p>
+      </div>
+    )}
+
+    <!-- Browse All -->
+    <div class="mt-12 text-center">
+      <a
+        href="/search"
+        class="inline-flex items-center gap-2 text-accent-blue hover:underline body-lg no-underline"
+      >
+        すべてのイベントを見る
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="5" y1="12" x2="19" y2="12" />
+          <polyline points="12 5 19 12 12 19" />
+        </svg>
+      </a>
+    </div>
+  </main>
+</Layout>

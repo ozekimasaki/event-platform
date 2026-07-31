@@ -45,20 +45,79 @@ export interface Ticket {
 }
 
 // Registration Status
-export type RegistrationStatus = 'pending' | 'confirmed' | 'cancelled' | 'checked_in';
+export type RegistrationStatus = 'pending' | 'confirmed' | 'waitlisted' | 'cancelled' | 'checked_in';
 
 // Registration
 export interface Registration {
   id: string;
   event_id: string;
   user_id: string;
-  ticket_id: string;
+  ticket_id?: string;
   status: RegistrationStatus;
   payment_id?: string;
+  qr_token: string;
+  custom_fields?: Record<string, unknown>;
   checked_in_at?: string;
   checked_in_by?: string;
   created_at: string;
   updated_at: string;
+}
+
+// Registration Request
+export interface RegistrationRequest {
+  event_slug: string;
+  ticket_id?: string;
+  custom_fields?: Record<string, unknown>;
+}
+
+// Registration Response
+export interface RegistrationResponse {
+  registration: Registration;
+  event: Event;
+  ticket?: Ticket;
+  qr_token: string;
+}
+
+// Ticket Create Request
+export interface TicketCreateRequest {
+  name: string;
+  description?: string;
+  price: number;
+  quantity: number;
+  sale_start_at?: string;
+  sale_end_at?: string;
+}
+
+// Ticket Update Request
+export interface TicketUpdateRequest {
+  name?: string;
+  description?: string;
+  price?: number;
+  quantity?: number;
+  sale_start_at?: string;
+  sale_end_at?: string;
+  is_active?: boolean;
+}
+
+// Ticket Response
+export interface TicketResponse {
+  ticket: Ticket;
+  available: number;
+}
+
+// Payment Intent Request
+export interface PaymentIntentRequest {
+  registration_id: string;
+  amount: number;
+  currency: string;
+}
+
+// Payment Intent Response
+export interface PaymentIntentResponse {
+  client_secret: string;
+  payment_intent_id: string;
+  amount: number;
+  currency: string;
 }
 
 // Create Event Input

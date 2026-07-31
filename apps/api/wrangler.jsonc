@@ -5,6 +5,10 @@
   "compatibility_date": "2026-07-31",
   "compatibility_flags": ["nodejs_compat"],
   "assets": { "directory": "./dist" },
+  "vars": {
+    "STRIPE_SECRET_KEY": "",
+    "STRIPE_WEBHOOK_SECRET": ""
+  },
   "kv_namespaces": [
     { "binding": "CACHE_KV", "id": "<KV_CACHE_ID>" }
   ],

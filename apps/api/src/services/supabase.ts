@@ -9,6 +9,8 @@ export interface Env {
   SUPABASE_ANON_KEY: string;
   SUPABASE_SERVICE_ROLE_KEY: string;
   SUPABASE_JWT_SECRET: string;
+  STRIPE_SECRET_KEY: string;
+  STRIPE_WEBHOOK_SECRET: string;
   CACHE_KV: KVNamespace;
   STORAGE: R2Bucket;
   TRANSACTIONAL_QUEUE: Queue;

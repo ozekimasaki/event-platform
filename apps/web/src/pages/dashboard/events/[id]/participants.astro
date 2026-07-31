@@ -1,0 +1,222 @@
+---
+import DashboardLayout from '../../../dashboard/layout.astro';
+import Badge from '../../../../../components/ui/Badge.astro';
+import Button from '../../../../../components/ui/Button.astro';
+import type { Event, Registration } from '@event-platform/shared';
+
+const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787';
+const { id } = Astro.params;
+
+let event: Event | null = null;
+let registrations: Registration[] = [];
+let notFound = false;
+
+// Fetch event
+try {
+  const token = Astro.cookies.get('sb-access-token')?.value;
+  if (!token) {
+    return Astro.redirect('/login');
+  }
+
+  const eventRes = await fetch(`${API_BASE}/api/events/by-id/${id}`, {
+    headers: { 'Authorization': `Bearer ${token}` },
+  });
+
+  if (!eventRes.ok) {
+    notFound = true;
+  } else {
+    const eventJson = await eventRes.json();
+    event = eventJson.data;
+
+    // Fetch participants
+    if (event) {
+      const regRes = await fetch(`${API_BASE}/api/events/${event.slug}/participants`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+
+      if (regRes.ok) {
+        const regJson = await regRes.json();
+        registrations = regJson.data ?? [];
+      }
+    }
+  }
+} catch (err) {
+  console.error('Failed to fetch data:', err);
+  notFound = true;
+}
+
+const statusVariant: Record<string, 'default' | 'success' | 'warning' | 'danger' | 'info'> = {
+  confirmed: 'success',
+  waitlisted: 'warning',
+  cancelled: 'danger',
+  pending: 'default',
+  checked_in: 'info',
+};
+
+const statusLabel: Record<string, string> = {
+  confirmed: '参加確定',
+  waitlisted: 'キャンセル待ち',
+  cancelled: 'キャンセル',
+  pending: '支払い待ち',
+  checked_in: 'チェックイン済',
+};
+
+const formatDate = (dateStr: string): string => {
+  const date = new Date(dateStr);
+  return date.toLocaleDateString('ja-JP', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+};
+---
+
+{!notFound && event ? (
+  <DashboardLayout
+    title={`参加者管理 - ${event.title}`}
+    breadcrumbs={[
+      { label: 'イベント管理', href: '/dashboard/events' },
+      { label: event.title, href: `/dashboard/events/${event.id}/edit` },
+      { label: '参加者管理' },
+    ]}
+  >
+    <div class="flex flex-col gap-6">
+      <!-- Header -->
+      <div class="flex items-center justify-between">
+        <div>
+          <h1 class="heading-lg text-text-primary">参加者管理</h1>
+          <p class="body-sm text-text-secondary mt-1">{event.title}</p>
+        </div>
+        <div class="flex items-center gap-3">
+          <Button variant="secondary" size="sm" id="export-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="mr-1.5">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            エクスポート
+          </Button>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
+        <div class="p-4 bg-surface-elevated border border-border-default rounded-md">
+          <p class="text-text-secondary text-sm">総登録数</p>
+          <p class="text-2xl font-bold text-text-primary mt-1">{registrations.length}</p>
+        </div>
+        <div class="p-4 bg-surface-elevated border border-border-default rounded-md">
+          <p class="text-text-secondary text-sm">参加確定</p>
+          <p class="text-2xl font-bold text-green-600 mt-1">{registrations.filter(r => r.status === 'confirmed').length}</p>
+        </div>
+        <div class="p-4 bg-surface-elevated border border-border-default rounded-md">
+          <p class="text-text-secondary text-sm">キャンセル待ち</p>
+          <p class="text-2xl font-bold text-yellow-600 mt-1">{registrations.filter(r => r.status === 'waitlisted').length}</p>
+        </div>
+        <div class="p-4 bg-surface-elevated border border-border-default rounded-md">
+          <p class="text-text-secondary text-sm">チェックイン済</p>
+          <p class="text-2xl font-bold text-blue-600 mt-1">{registrations.filter(r => r.status === 'checked_in').length}</p>
+        </div>
+      </div>
+
+      <!-- Filter -->
+      <div class="flex items-center gap-2">
+        <span class="text-sm text-text-secondary">絞り込み:</span>
+        <button class="filter-btn px-3 py-1 text-sm rounded-sm border border-border-default bg-surface-base text-text-secondary hover:bg-surface-medium transition-colors" data-filter="all">
+          すべて
+        </button>
+        <button class="filter-btn px-3 py-1 text-sm rounded-sm border border-border-default bg-surface-base text-text-secondary hover:bg-surface-medium transition-colors" data-filter="confirmed">
+          参加確定
+        </button>
+        <button class="filter-btn px-3 py-1 text-sm rounded-sm border border-border-default bg-surface-base text-text-secondary hover:bg-surface-medium transition-colors" data-filter="waitlisted">
+          キャンセル待ち
+        </button>
+        <button class="filter-btn px-3 py-1 text-sm rounded-sm border border-border-default bg-surface-base text-text-secondary hover:bg-surface-medium transition-colors" data-filter="cancelled">
+          キャンセル
+        </button>
+      </div>
+
+      <!-- Participants Table -->
+      <div class="overflow-x-auto border border-border-default rounded-md">
+        <table class="w-full text-sm">
+          <thead class="bg-surface-medium border-b border-border-default">
+            <tr>
+              <th class="text-left px-4 py-3 text-text-secondary font-medium">名前</th>
+              <th class="text-left px-4 py-3 text-text-secondary font-medium">メールアドレス</th>
+              <th class="text-left px-4 py-3 text-text-secondary font-medium">チケット</th>
+              <th class="text-left px-4 py-3 text-text-secondary font-medium">ステータス</th>
+              <th class="text-left px-4 py-3 text-text-secondary font-medium">登録日</th>
+              <th class="text-left px-4 py-3 text-text-secondary font-medium">チェックイン</th>
+            </tr>
+          </thead>
+          <tbody id="participants-tbody">
+            {registrations.length === 0 ? (
+              <tr>
+                <td colspan="6" class="px-4 py-8 text-center text-text-secondary">
+                  まだ参加者がいません
+                </td>
+              </tr>
+            ) : (
+              registrations.map((reg) => (
+                <tr class="border-b border-border-default last:border-b-0 hover:bg-surface-medium/50 transition-colors" data-status={reg.status}>
+                  <td class="px-4 py-3 text-text-primary">
+                    {reg.user_id.substring(0, 8)}...
+                  </td>
+                  <td class="px-4 py-3 text-text-secondary">
+                    -
+                  </td>
+                  <td class="px-4 py-3 text-text-secondary">
+                    {reg.ticket_id ? reg.ticket_id.substring(0, 8) : '-'}
+                  </td>
+                  <td class="px-4 py-3">
+                    <Badge variant={statusVariant[reg.status] ?? 'default'}>
+                      {statusLabel[reg.status] ?? reg.status}
+                    </Badge>
+                  </td>
+                  <td class="px-4 py-3 text-text-secondary">
+                    {formatDate(reg.created_at)}
+                  </td>
+                  <td class="px-4 py-3 text-text-secondary">
+                    {reg.checked_in_at ? formatDate(reg.checked_in_at) : '-'}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Client-side filter logic -->
+    <script>
+      document.querySelectorAll('.filter-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const filter = (btn as HTMLElement).dataset.filter;
+          const rows = document.querySelectorAll('#participants-tbody tr[data-status]');
+
+          rows.forEach((row) => {
+            const status = (row as HTMLElement).dataset.status;
+            if (filter === 'all' || status === filter) {
+              (row as HTMLElement).style.display = '';
+            } else {
+              (row as HTMLElement).style.display = 'none';
+            }
+          });
+
+          // Update active state
+          document.querySelectorAll('.filter-btn').forEach((b) => {
+            b.classList.remove('bg-accent-blue', 'text-white', 'border-accent-blue');
+          });
+          btn.classList.add('bg-accent-blue', 'text-white', 'border-accent-blue');
+        });
+      });
+    </script>
+  </DashboardLayout>
+) : (
+  <DashboardLayout title="イベントが見つかりません">
+    <div class="text-center py-12">
+      <p class="text-text-secondary body-lg">イベントが見つかりませんでした</p>
+      <Button variant="accent" href="/dashboard/events" class="mt-4">イベント一覧に戻る</Button>
+    </div>
+  </DashboardLayout>
+)}

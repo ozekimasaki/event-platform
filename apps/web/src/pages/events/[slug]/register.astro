@@ -1,0 +1,327 @@
+---
+import Layout from '../../../../layouts/Layout.astro';
+import Button from '../../../../components/ui/Button.astro';
+import Card from '../../../../components/ui/Card.astro';
+import Input from '../../../../components/ui/Input.astro';
+import Badge from '../../../../components/ui/Badge.astro';
+import StripePayment from '../../../../components/StripePayment';
+import type { Event, Ticket } from '@event-platform/shared';
+
+const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787';
+const STRIPE_PUBLISHABLE_KEY = import.meta.env.PUBLIC_STRIPE_PUBLISHABLE_KEY || '';
+const { slug } = Astro.params;
+
+let event: Event | null = null;
+let tickets: (Ticket & { available: number })[] = [];
+let notFound = false;
+
+// Fetch event
+try {
+  const res = await fetch(`${API_BASE}/api/events/${slug}`);
+  if (res.ok) {
+    const json = await res.json();
+    event = json.data;
+  } else {
+    notFound = true;
+  }
+} catch (err) {
+  console.error('Failed to fetch event:', err);
+  notFound = true;
+}
+
+// Fetch tickets
+if (event) {
+  try {
+    const ticketRes = await fetch(`${API_BASE}/api/events/${slug}/tickets`);
+    if (ticketRes.ok) {
+      const ticketJson = await ticketRes.json();
+      tickets = ticketJson.data ?? [];
+    }
+  } catch (err) {
+    console.error('Failed to fetch tickets:', err);
+  }
+}
+
+const formatDate = (dateStr: string): string => {
+  const date = new Date(dateStr);
+  return date.toLocaleDateString('ja-JP', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    weekday: 'long',
+  });
+};
+
+const formatTime = (dateStr: string): string => {
+  const date = new Date(dateStr);
+  return date.toLocaleTimeString('ja-JP', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+
+const formatPrice = (price: number, currency: string): string => {
+  if (price === 0) return '無料';
+  return new Intl.NumberFormat('ja-JP', {
+    style: 'currency',
+    currency: currency.toUpperCase(),
+  }).format(price / 100);
+};
+---
+
+{event ? (
+  <Layout title={`${event.title} - 参加登録 | Event Platform`}>
+    <main class="mx-auto max-w-2xl px-4 py-8 lg:px-6">
+      <!-- Back link -->
+      <a
+        href={`/events/${event.slug}`}
+        class="inline-flex items-center gap-1.5 text-text-secondary hover:text-text-primary transition-colors no-underline body-sm mb-6"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="15 18 9 12 15 6" />
+        </svg>
+        イベントページに戻る
+      </a>
+
+      <h1 class="display-md text-text-primary mb-2">参加登録</h1>
+      <p class="body-lg text-text-secondary mb-8">{event.title}</p>
+
+      <!-- Event Summary -->
+      <Card padding="md" class="mb-6">
+        <h2 class="heading-sm text-text-primary mb-3">イベント概要</h2>
+        <div class="flex flex-col gap-2 body-sm">
+          <div class="flex items-center gap-2 text-text-secondary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent-blue shrink-0">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+              <line x1="16" y1="2" x2="16" y2="6" />
+              <line x1="8" y1="2" x2="8" y2="6" />
+              <line x1="3" y1="10" x2="21" y2="10" />
+            </svg>
+            <span>{formatDate(event.start_at)} {formatTime(event.start_at)} — {formatTime(event.end_at)}</span>
+          </div>
+          {event.venue_name && (
+            <div class="flex items-center gap-2 text-text-secondary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent-rose shrink-0">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                <circle cx="12" cy="10" r="3" />
+              </svg>
+              <span>{event.venue_name}</span>
+            </div>
+          )}
+          <div class="flex items-center gap-2 text-text-secondary">
+            <Badge variant={event.pricing_type === 'free' ? 'success' : 'info'}>
+              {event.pricing_type === 'free' ? '無料' : event.pricing_type === 'paid' ? '有料' : '投げ銭制'}
+            </Badge>
+          </div>
+        </div>
+      </Card>
+
+      <!-- Ticket Selection (if multiple tickets) -->
+      {tickets.length > 0 && (
+        <Card padding="md" class="mb-6">
+          <h2 class="heading-sm text-text-primary mb-3">チケット選択</h2>
+          <div class="flex flex-col gap-3" id="ticket-options">
+            {tickets.map((ticket) => (
+              <label
+                class="flex items-center gap-3 p-3 border border-border-default rounded-sm cursor-pointer hover:bg-surface-medium transition-colors"
+              >
+                <input
+                  type="radio"
+                  name="ticket_id"
+                  value={ticket.id}
+                  class="accent-accent-blue"
+                  disabled={ticket.available <= 0}
+                />
+                <div class="flex-1 min-w-0">
+                  <p class="text-text-primary font-medium">{ticket.name}</p>
+                  {ticket.description && (
+                    <p class="text-text-secondary text-sm mt-0.5">{ticket.description}</p>
+                  )}
+                </div>
+                <div class="text-right shrink-0">
+                  <p class="text-text-primary font-semibold">{formatPrice(ticket.price, event.currency)}</p>
+                  {ticket.available > 0 ? (
+                    <p class="text-text-secondary text-xs">残席 {ticket.available}</p>
+                  ) : (
+                    <p class="text-danger text-xs">売り切れ</p>
+                  )}
+                </div>
+              </label>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      <!-- Custom Fields Form -->
+      <Card padding="md" class="mb-6">
+        <h2 class="heading-sm text-text-primary mb-3">登録情報</h2>
+        <form id="registration-form" class="flex flex-col gap-4">
+          <Input
+            label="お名前"
+            name="name"
+            placeholder="山田 太郎"
+            required
+          />
+          <Input
+            label="メールアドレス"
+            name="email"
+            type="email"
+            placeholder="your@email.com"
+            required
+          />
+
+          <!-- Custom fields placeholder (event-specific questions) -->
+          <div id="custom-fields" class="flex flex-col gap-4">
+            <!-- Dynamic custom fields will be rendered here by client JS -->
+          </div>
+
+          <!-- Payment Section (for paid events) -->
+          {event.pricing_type === 'paid' && (
+            <div id="payment-section" class="border-t border-border-default pt-4 mt-2">
+              <h3 class="heading-sm text-text-primary mb-3">お支払い</h3>
+              <div id="stripe-payment-container">
+                <!-- StripePayment React island will be mounted here -->
+                <p class="text-text-secondary body-sm">
+                  登録ボタンをクリックした後、お支払い画面に進みます。
+                </p>
+              </div>
+            </div>
+          )}
+
+          <!-- Submit -->
+          <div class="pt-2">
+            {event.pricing_type === 'free' ? (
+              <Button variant="accent" size="lg" class="w-full" id="register-btn">
+                参加登録する（無料）
+              </Button>
+            ) : (
+              <Button variant="accent" size="lg" class="w-full" id="register-btn">
+                支払って参加登録する
+              </Button>
+            )}
+          </div>
+
+          <!-- Status messages -->
+          <div id="registration-status" class="hidden">
+            <div id="status-success" class="hidden p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-sm">
+              <p class="text-green-800 dark:text-green-200 font-medium">登録が完了しました！</p>
+              <p class="text-green-700 dark:text-green-300 text-sm mt-1">確認メールをお送りしました。</p>
+            </div>
+            <div id="status-error" class="hidden p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-sm">
+              <p class="text-red-800 dark:text-red-200 font-medium">エラーが発生しました</p>
+              <p id="error-message" class="text-red-700 dark:text-red-300 text-sm mt-1"></p>
+            </div>
+          </div>
+        </form>
+      </Card>
+    </main>
+
+    <!-- Client-side registration logic -->
+    <script define:vars={{ eventSlug: slug, apiBase: API_BASE, isPaid: event.pricing_type === 'paid', stripeKey: STRIPE_PUBLISHABLE_KEY }}>
+      (function() {
+        const form = document.getElementById('registration-form');
+        if (!form) return;
+
+        form.addEventListener('submit', async (e) => {
+          e.preventDefault();
+
+          const statusDiv = document.getElementById('registration-status');
+          const successDiv = document.getElementById('status-success');
+          const errorDiv = document.getElementById('status-error');
+          const errorMsg = document.getElementById('error-message');
+          const btn = document.getElementById('register-btn');
+
+          // Reset status
+          statusDiv.classList.remove('hidden');
+          successDiv.classList.add('hidden');
+          errorDiv.classList.add('hidden');
+
+          // Get form data
+          const formData = new FormData(form);
+          const ticketId = formData.get('ticket_id') || undefined;
+
+          const token = localStorage.getItem('sb-access-token');
+          if (!token) {
+            errorDiv.classList.remove('hidden');
+            errorMsg.textContent = 'ログインが必要です。ログインページに移動します。';
+            setTimeout(() => { window.location.href = '/login'; }, 2000);
+            return;
+          }
+
+          btn.disabled = true;
+          btn.textContent = '処理中...';
+
+          try {
+            // Step 1: Create registration
+            const regRes = await fetch(`${apiBase}/api/events/${eventSlug}/register`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+              },
+              body: JSON.stringify({
+                ticket_id: ticketId,
+                custom_fields: {},
+              }),
+            });
+
+            const regJson = await regRes.json();
+
+            if (!regRes.ok) {
+              throw new Error(regJson.error?.message || 'Registration failed');
+            }
+
+            if (regJson.data.is_waitlisted) {
+              successDiv.querySelector('p').textContent = 'キャンセル待ちリストに登録しました。';
+            }
+
+            // For paid events, proceed to payment
+            if (isPaid && regJson.data.registration) {
+              // Step 2: Create payment intent
+              const paymentRes = await fetch(`${apiBase}/api/payments/create-intent`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                  registration_id: regJson.data.registration.id,
+                  amount: regJson.data.event.base_price || 0,
+                  currency: regJson.data.event.currency || 'usd',
+                }),
+              });
+
+              const paymentJson = await paymentRes.json();
+
+              if (!paymentRes.ok) {
+                throw new Error(paymentJson.error?.message || 'Payment creation failed');
+              }
+
+              // TODO: Mount StripePayment React island with client:load
+              // For now, show success after registration
+              successDiv.classList.remove('hidden');
+            } else {
+              successDiv.classList.remove('hidden');
+            }
+          } catch (err) {
+            errorDiv.classList.remove('hidden');
+            errorMsg.textContent = err.message || 'An error occurred';
+          } finally {
+            btn.disabled = false;
+            btn.textContent = isPaid ? '支払って参加登録する' : '参加登録する（無料）';
+          }
+        });
+      })();
+    </script>
+  </Layout>
+) : (
+  <Layout title="イベントが見つかりません">
+    <main class="mx-auto max-w-2xl px-4 py-20 lg:px-6 text-center">
+      <h1 class="display-md text-text-primary mb-4">イベントが見つかりませんでした</h1>
+      <p class="body-lg text-text-secondary mb-8">
+        お探しのイベントは削除されたか、URLが間違っている可能性があります。
+      </p>
+      <Button variant="accent" href="/events">イベント一覧を見る</Button>
+    </main>
+  </Layout>
+)}

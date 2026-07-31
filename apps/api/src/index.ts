@@ -4,6 +4,9 @@ import { routes } from './routes/index.js';
 import { auth } from './routes/auth.js';
 import { events } from './routes/events.js';
 import { upload } from './routes/upload.js';
+import { registrations } from './routes/registrations.js';
+import { tickets } from './routes/tickets.js';
+import { payments, handleStripeWebhookRoute, getEventPaymentsRoute } from './routes/payments.js';
 import { authMiddleware, optionalAuthMiddleware } from './middleware/auth.js';
 import { CheckInCoordinator } from './durable-objects/check-in.js';
 import type { Env } from './services/supabase.js';
@@ -36,6 +39,22 @@ app.route('/api/auth', auth);
 // Event routes (public endpoints use optionalAuth, protected ones check inside)
 app.use('/api/events/*', optionalAuthMiddleware);
 app.route('/api/events', events);
+
+// Stripe webhook (no auth — uses signature verification, must be before auth middleware)
+app.post('/api/webhooks/stripe', handleStripeWebhookRoute);
+
+// Registration routes (share optionalAuth with events)
+app.route('/api', registrations);
+
+// Ticket routes
+app.route('/api', tickets);
+
+// Payment routes (auth required)
+app.use('/api/payments/*', authMiddleware);
+app.route('/api/payments', payments);
+
+// Event payments (organizer only, auth required)
+app.get('/api/events/:slug/payments', authMiddleware, getEventPaymentsRoute);
 
 // Upload routes (require authentication)
 app.use('/api/upload/*', authMiddleware);

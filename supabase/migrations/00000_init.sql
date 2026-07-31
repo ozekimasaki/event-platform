@@ -201,6 +201,55 @@ CREATE TABLE speaker_materials (
 CREATE INDEX idx_speaker_materials_session_id ON speaker_materials(session_id);
 
 -- ============================================
+-- CFP SUBMISSIONS
+-- ============================================
+
+CREATE TABLE cfp_submissions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  abstract TEXT NOT NULL,
+  speaker_name TEXT NOT NULL,
+  speaker_email TEXT NOT NULL,
+  duration_minutes INTEGER NOT NULL DEFAULT 30,
+  status TEXT NOT NULL DEFAULT 'pending',
+  reviewed_by UUID REFERENCES auth.users(id),
+  review_notes TEXT,
+  reviewed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_cfp_submissions_event_id ON cfp_submissions(event_id);
+CREATE INDEX idx_cfp_submissions_status ON cfp_submissions(status);
+
+-- Enable RLS
+ALTER TABLE cfp_submissions ENABLE ROW LEVEL SECURITY;
+
+-- CfP policies
+CREATE POLICY "CfP submissions for published events are viewable by everyone"
+  ON cfp_submissions FOR SELECT USING (EXISTS (
+    SELECT 1 FROM events WHERE events.id = cfp_submissions.event_id
+    AND (events.status = 'published' OR events.organizer_id IN (
+      SELECT id FROM organizers WHERE user_id = auth.uid()
+    ))
+  ));
+
+CREATE POLICY "Users can submit CfP"
+  ON cfp_submissions FOR INSERT WITH CHECK (true);
+
+CREATE POLICY "Organizers can manage CfP submissions for own events"
+  ON cfp_submissions FOR ALL USING (EXISTS (
+    SELECT 1 FROM events WHERE events.id = cfp_submissions.event_id
+    AND events.organizer_id IN (
+      SELECT id FROM organizers WHERE user_id = auth.uid()
+    )
+  ));
+
+CREATE TRIGGER update_cfp_submissions_updated_at
+  BEFORE UPDATE ON cfp_submissions FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+-- ============================================
 -- ARTICLES
 -- ============================================
 

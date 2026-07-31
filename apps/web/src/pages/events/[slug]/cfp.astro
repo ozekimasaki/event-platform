@@ -1,0 +1,226 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import Card from '../../../components/ui/Card.astro';
+import Button from '../../../components/ui/Button.astro';
+
+const { slug } = Astro.params;
+const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787';
+
+// Fetch event
+let event: any = null;
+let error = '';
+
+try {
+  const eventRes = await fetch(`${API_BASE}/api/events/${slug}`);
+  if (eventRes.ok) {
+    const eventJson = await eventRes.json();
+    event = eventJson.data;
+  }
+} catch (err) {
+  error = 'イベントの読み込みに失敗しました';
+}
+
+const formatFullDate = (dateStr: string): string => {
+  return new Date(dateStr).toLocaleDateString('ja-JP', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+};
+---
+
+<Layout title={event ? `${event.title} - CfP応募` : 'CfP応募'}>
+  <div class="max-w-3xl mx-auto px-4 py-8">
+    {event ? (
+      <>
+        <!-- Event Header -->
+        <div class="mb-8">
+          <a href={`/events/${slug}`} class="text-sm text-accent-blue hover:underline no-underline mb-2 inline-block">
+            ← イベント詳細に戻る
+          </a>
+          <h1 class="text-3xl font-bold text-text-primary mb-2">Call for Proposals</h1>
+          <p class="text-text-secondary">
+            「{event.title}」のセッションに応募する
+          </p>
+        </div>
+
+        <!-- CfP Info -->
+        <Card padding="lg" class="mb-6">
+          <h2 class="text-xl font-semibold text-text-primary mb-3">セッション応募について</h2>
+          <div class="space-y-2 text-sm text-text-secondary">
+            <p>• トークタイトルとアブストラクト（概要）を入力してください</p>
+            <p>• 発表者のお名前とメールアドレスが必要です</p>
+            <p>• 発表時間は5分〜180分の範囲で指定できます</p>
+            <p>• 応募後、運営チームが内容を確認し、採否をご連絡します</p>
+          </div>
+          <div class="mt-4 pt-4 border-t border-border-default">
+            <p class="text-sm text-text-secondary">
+              <span class="font-medium text-text-primary">イベント日時:</span> {formatFullDate(event.start_at)}
+            </p>
+            {event.venue_name && (
+              <p class="text-sm text-text-secondary">
+                <span class="font-medium text-text-primary">会場:</span> {event.venue_name}
+              </p>
+            )}
+          </div>
+        </Card>
+
+        <!-- Submission Form -->
+        <Card padding="lg">
+          <h2 class="text-xl font-semibold text-text-primary mb-4">応募フォーム</h2>
+          <form id="cfp-form" class="space-y-5">
+            <input type="hidden" name="event_id" value={event.id} />
+
+            <!-- Speaker Name -->
+            <div>
+              <label for="speaker_name" class="block text-sm font-medium text-text-primary mb-1.5">
+                発表者名 <span class="text-danger">*</span>
+              </label>
+              <input
+                type="text"
+                id="speaker_name"
+                name="speaker_name"
+                required
+                maxlength="200"
+                placeholder="山田 太郎"
+                class="w-full px-3 py-2 text-sm text-text-primary bg-surface-base border border-border-default rounded-sm min-h-[44px] focus:outline-2 focus:outline-accent-blue focus:border-accent-blue"
+              />
+            </div>
+
+            <!-- Speaker Email -->
+            <div>
+              <label for="speaker_email" class="block text-sm font-medium text-text-primary mb-1.5">
+                メールアドレス <span class="text-danger">*</span>
+              </label>
+              <input
+                type="email"
+                id="speaker_email"
+                name="speaker_email"
+                required
+                maxlength="300"
+                placeholder="speaker@example.com"
+                class="w-full px-3 py-2 text-sm text-text-primary bg-surface-base border border-border-default rounded-sm min-h-[44px] focus:outline-2 focus:outline-accent-blue focus:border-accent-blue"
+              />
+            </div>
+
+            <!-- Title -->
+            <div>
+              <label for="title" class="block text-sm font-medium text-text-primary mb-1.5">
+                トークタイトル <span class="text-danger">*</span>
+              </label>
+              <input
+                type="text"
+                id="title"
+                name="title"
+                required
+                maxlength="300"
+                placeholder="セッションのタイトル"
+                class="w-full px-3 py-2 text-sm text-text-primary bg-surface-base border border-border-default rounded-sm min-h-[44px] focus:outline-2 focus:outline-accent-blue focus:border-accent-blue"
+              />
+            </div>
+
+            <!-- Abstract -->
+            <div>
+              <label for="abstract" class="block text-sm font-medium text-text-primary mb-1.5">
+                アブストラクト（概要） <span class="text-danger">*</span>
+              </label>
+              <textarea
+                id="abstract"
+                name="abstract"
+                required
+                maxlength="5000"
+                rows="6"
+                placeholder="セッションの概要を記入してください（10文字以上）"
+                class="w-full px-3 py-2 text-sm text-text-primary bg-surface-base border border-border-default rounded-sm focus:outline-2 focus:outline-accent-blue focus:border-accent-blue resize-y"
+              />
+              <p class="text-xs text-text-secondary mt-1">10文字以上5000文字以内</p>
+            </div>
+
+            <!-- Duration -->
+            <div>
+              <label for="duration_minutes" class="block text-sm font-medium text-text-primary mb-1.5">
+                発表時間（分） <span class="text-danger">*</span>
+              </label>
+              <select
+                id="duration_minutes"
+                name="duration_minutes"
+                required
+                class="w-full px-3 py-2 text-sm text-text-primary bg-surface-base border border-border-default rounded-sm min-h-[44px] focus:outline-2 focus:outline-accent-blue focus:border-accent-blue"
+              >
+                <option value="15">15分（ライトニングトーク）</option>
+                <option value="30" selected>30分</option>
+                <option value="45">45分</option>
+                <option value="60">60分</option>
+                <option value="90">90分（ワークショップ）</option>
+              </select>
+            </div>
+
+            <!-- Submit Button -->
+            <div class="pt-2">
+              <Button type="submit" variant="accent" class="w-full sm:w-auto">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="22" y1="2" x2="11" y2="13" />
+                  <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                </svg>
+                応募する
+              </Button>
+            </div>
+
+            <!-- Status Message -->
+            <div id="form-status" class="hidden"></div>
+          </form>
+        </Card>
+      </>
+    ) : (
+      <Card padding="lg">
+        <div class="text-center py-8">
+          <p class="text-lg font-medium text-text-secondary">{error || 'イベントが見つかりません'}</p>
+        </div>
+      </Card>
+    )}
+  </div>
+</Layout>
+
+<script>
+  const form = document.getElementById('cfp-form') as HTMLFormElement;
+  const statusEl = document.getElementById('form-status') as HTMLDivElement;
+
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(form);
+    const eventId = formData.get('event_id') as string;
+
+    const payload = {
+      title: formData.get('title') as string,
+      abstract: formData.get('abstract') as string,
+      speaker_name: formData.get('speaker_name') as string,
+      speaker_email: formData.get('speaker_email') as string,
+      duration_minutes: Number(formData.get('duration_minutes')),
+    };
+
+    statusEl.className = 'hidden';
+
+    try {
+      const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787';
+      const res = await fetch(`${API_BASE}/api/events/${eventId}/cfp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const json = await res.json();
+
+      if (res.ok) {
+        statusEl.className = 'p-3 rounded-sm text-sm bg-[color-mix(in_srgb,var(--color-success)_15%,transparent)] text-success';
+        statusEl.textContent = '応募が完了しました！運営チームよりご連絡いたします。';
+        form.reset();
+      } else {
+        statusEl.className = 'p-3 rounded-sm text-sm bg-[color-mix(in_srgb,var(--color-danger)_15%,transparent)] text-danger';
+        statusEl.textContent = json.error?.message || '応募に失敗しました';
+      }
+    } catch {
+      statusEl.className = 'p-3 rounded-sm text-sm bg-[color-mix(in_srgb,var(--color-danger)_15%,transparent)] text-danger';
+      statusEl.textContent = 'エラーが発生しました。しばらくしてから再度お試しください。';
+    }
+  });
+</script>

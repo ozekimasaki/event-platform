@@ -1,0 +1,139 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import Card from '../../../components/ui/Card.astro';
+import Badge from '../../../components/ui/Badge.astro';
+import type { TimetableByTrack } from '@event-platform/shared';
+
+const { slug } = Astro.params;
+const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787';
+
+// Fetch event
+let event: any = null;
+let timetable: TimetableByTrack[] = [];
+let error = '';
+
+try {
+  const eventRes = await fetch(`${API_BASE}/api/events/${slug}`);
+  if (eventRes.ok) {
+    const eventJson = await eventRes.json();
+    event = eventJson.data;
+  }
+} catch (err) {
+  error = 'イベントの読み込みに失敗しました';
+}
+
+// Fetch timetable
+if (event) {
+  try {
+    const ttRes = await fetch(`${API_BASE}/api/events/${event.id}/timetable`);
+    if (ttRes.ok) {
+      const ttJson = await ttRes.json();
+      timetable = ttJson.data || [];
+    }
+  } catch (err) {
+    console.error('Failed to fetch timetable:', err);
+  }
+}
+
+const formatDate = (dateStr: string): string => {
+  return new Date(dateStr).toLocaleTimeString('ja-JP', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+
+const formatFullDate = (dateStr: string): string => {
+  return new Date(dateStr).toLocaleDateString('ja-JP', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+};
+---
+
+<Layout title={event ? `${event.title} - タイムテーブル` : 'タイムテーブル'}>
+  <div class="max-w-5xl mx-auto px-4 py-8">
+    {event ? (
+      <>
+        <!-- Event Header -->
+        <div class="mb-8">
+          <a href={`/events/${slug}`} class="text-sm text-accent-blue hover:underline no-underline mb-2 inline-block">
+            ← イベント詳細に戻る
+          </a>
+          <h1 class="text-3xl font-bold text-text-primary mb-2">{event.title} - タイムテーブル</h1>
+          <p class="text-text-secondary">
+            {formatFullDate(event.start_at)}
+            {event.venue_name && ` | ${event.venue_name}`}
+          </p>
+        </div>
+
+        {timetable.length > 0 ? (
+          <div class="flex flex-col gap-8">
+            {timetable.map((trackGroup) => (
+              <div>
+                <div class="flex items-center gap-3 mb-4">
+                  <Badge variant="info">{trackGroup.track}</Badge>
+                  <span class="text-sm text-text-secondary">{trackGroup.sessions.length} セッション</span>
+                </div>
+
+                <div class="flex flex-col gap-3">
+                  {trackGroup.sessions.map((session) => (
+                    <Card padding="md">
+                      <div class="flex flex-col sm:flex-row sm:items-start gap-4">
+                        <!-- Time -->
+                        <div class="sm:w-32 shrink-0">
+                          <div class="flex items-center gap-2 text-sm font-medium text-accent-blue">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                              <circle cx="12" cy="12" r="10" />
+                              <polyline points="12 6 12 12 16 14" />
+                            </svg>
+                            {formatDate(session.start_at)} - {formatDate(session.end_at)}
+                          </div>
+                          <p class="text-xs text-text-secondary mt-1">{session.duration_minutes}分</p>
+                        </div>
+
+                        <!-- Session Info -->
+                        <div class="flex-1 min-w-0">
+                          <h3 class="text-lg font-semibold text-text-primary mb-1">{session.title}</h3>
+                          {session.description && (
+                            <p class="text-sm text-text-secondary mb-2 line-clamp-2">{session.description}</p>
+                          )}
+                          {session.speaker_id && (
+                            <div class="flex items-center gap-2 text-sm text-text-secondary">
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                                <circle cx="12" cy="7" r="4" />
+                              </svg>
+                              <span>Speaker</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <Card padding="lg">
+            <div class="text-center py-8">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="mx-auto text-text-secondary opacity-40 mb-4">
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
+              <p class="text-lg font-medium text-text-secondary mb-2">タイムテーブルは未公開です</p>
+              <p class="text-sm text-text-secondary">セッション情報が追加され次第、こちらに掲載されます。</p>
+            </div>
+          </Card>
+        )}
+      </>
+    ) : (
+      <Card padding="lg">
+        <div class="text-center py-8">
+          <p class="text-lg font-medium text-text-secondary">{error || 'イベントが見つかりません'}</p>
+        </div>
+      </Card>
+    )}
+  </div>
+</Layout>

@@ -1,0 +1,216 @@
+---
+import DashboardLayout from '../../../layout.astro';
+import Card from '../../../../components/ui/Card.astro';
+import Badge from '../../../../components/ui/Badge.astro';
+import Button from '../../../../components/ui/Button.astro';
+import type { CfpSubmission, CfpStats } from '@event-platform/shared';
+
+const { id } = Astro.params;
+const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787';
+const token = Astro.cookies.get('sb-token')?.value || '';
+
+const headers = { 'Authorization': `Bearer ${token}` };
+
+// Fetch event
+let event: any = null;
+let submissions: CfpSubmission[] = [];
+let stats: CfpStats = { total: 0, pending: 0, approved: 0, rejected: 0, avg_duration_minutes: 0 };
+
+try {
+  const eventRes = await fetch(`${API_BASE}/api/events/by-id/${id}`, { headers });
+  if (eventRes.ok) {
+    const eventJson = await eventRes.json();
+    event = eventJson.data;
+  }
+} catch (err) {
+  console.error('Failed to fetch event:', err);
+}
+
+// Fetch CfP submissions
+if (event) {
+  try {
+    const cfpRes = await fetch(`${API_BASE}/api/events/${event.id}/cfp/submissions`, { headers });
+    if (cfpRes.ok) {
+      const cfpJson = await cfpRes.json();
+      submissions = cfpJson.data?.submissions || [];
+      stats = cfpJson.data?.stats || stats;
+    }
+  } catch (err) {
+    console.error('Failed to fetch CfP submissions:', err);
+  }
+}
+
+const statusVariant: Record<string, 'default' | 'success' | 'warning' | 'danger' | 'info'> = {
+  pending: 'warning',
+  approved: 'success',
+  rejected: 'danger',
+};
+
+const statusLabel: Record<string, string> = {
+  pending: '審査中',
+  approved: '採択',
+  rejected: '不採択',
+};
+
+const formatDate = (dateStr: string): string => {
+  return new Date(dateStr).toLocaleDateString('ja-JP', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+---
+
+<DashboardLayout
+  title="CfP管理"
+  breadcrumbs={[
+    { label: 'イベント管理', href: '/dashboard/events' },
+    { label: event?.title ?? 'イベント', href: `/dashboard/events/${id}/edit` },
+    { label: 'CfP管理' },
+  ]}
+>
+  <div class="mb-6">
+    <h1 class="heading-lg text-text-primary">CfP管理</h1>
+    {event && <p class="text-sm text-text-secondary mt-1">{event.title}</p>}
+  </div>
+
+  <!-- Stats Cards -->
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+    <Card padding="sm">
+      <p class="caption-mono text-text-secondary mb-1">総応募数</p>
+      <p class="text-xl font-bold text-text-primary">{stats.total}</p>
+    </Card>
+    <Card padding="sm">
+      <p class="caption-mono text-text-secondary mb-1">審査中</p>
+      <p class="text-xl font-bold text-warning">{stats.pending}</p>
+    </Card>
+    <Card padding="sm">
+      <p class="caption-mono text-text-secondary mb-1">採択</p>
+      <p class="text-xl font-bold text-success">{stats.approved}</p>
+    </Card>
+    <Card padding="sm">
+      <p class="caption-mono text-text-secondary mb-1">平均発表時間</p>
+      <p class="text-xl font-bold text-text-primary">{stats.avg_duration_minutes}分</p>
+    </Card>
+  </div>
+
+  <!-- Submissions List -->
+  {submissions.length > 0 ? (
+    <div class="flex flex-col gap-4">
+      {submissions.map((sub) => (
+        <Card padding="md">
+          <div class="flex flex-col sm:flex-row sm:items-start gap-4">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 mb-1">
+                <h3 class="text-base font-semibold text-text-primary truncate">{sub.title}</h3>
+                <Badge variant={statusVariant[sub.status] ?? 'default'}>
+                  {statusLabel[sub.status] ?? sub.status}
+                </Badge>
+              </div>
+              <p class="text-sm text-text-secondary mb-2 line-clamp-2">{sub.abstract}</p>
+              <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-secondary">
+                <span class="flex items-center gap-1">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                    <circle cx="12" cy="7" r="4" />
+                  </svg>
+                  {sub.speaker_name}
+                </span>
+                <span class="flex items-center gap-1">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                    <polyline points="22,6 12,13 2,6" />
+                  </svg>
+                  {sub.speaker_email}
+                </span>
+                <span>{sub.duration_minutes}分</span>
+                <span>応募: {formatDate(sub.created_at)}</span>
+              </div>
+              {sub.review_notes && (
+                <div class="mt-2 p-2 bg-surface-soft rounded-sm text-xs text-text-secondary">
+                  <span class="font-medium">レビューメモ:</span> {sub.review_notes}
+                </div>
+              )}
+            </div>
+
+            <!-- Review Actions -->
+            {sub.status === 'pending' && (
+              <div class="flex sm:flex-col gap-2 shrink-0">
+                <button
+                  type="button"
+                  class="inline-flex items-center justify-center px-3 py-1.5 text-sm font-medium rounded-sm border transition-colors bg-[color-mix(in_srgb,var(--color-success)_15%,transparent)] text-success border-transparent hover:opacity-80 min-h-[36px]"
+                  data-cfp-id={sub.id}
+                  data-status="approved"
+                  onclick="handleReview(this)"
+                >
+                  採択
+                </button>
+                <button
+                  type="button"
+                  class="inline-flex items-center justify-center px-3 py-1.5 text-sm font-medium rounded-sm border transition-colors bg-[color-mix(in_srgb,var(--color-danger)_15%,transparent)] text-danger border-transparent hover:opacity-80 min-h-[36px]"
+                  data-cfp-id={sub.id}
+                  data-status="rejected"
+                  onclick="handleReview(this)"
+                >
+                  不採択
+                </button>
+              </div>
+            )}
+          </div>
+        </Card>
+      ))}
+    </div>
+  ) : (
+    <Card padding="lg">
+      <div class="text-center py-12">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="mx-auto text-text-secondary opacity-40 mb-4">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+          <line x1="16" y1="13" x2="8" y2="13" />
+          <line x1="16" y1="17" x2="8" y2="17" />
+        </svg>
+        <p class="heading-sm text-text-secondary mb-2">CfP応募はまだありません</p>
+        <p class="body-sm text-text-secondary">
+          応募フォーム: <code class="text-accent-blue">/events/{event?.slug ?? '...'}/cfp</code>
+        </p>
+      </div>
+    </Card>
+  )}
+</DashboardLayout>
+
+<script>
+  const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787';
+
+  function getToken(): string {
+    return document.cookie.split('; ').find(row => row.startsWith('sb-token='))?.split('=')[1] || '';
+  }
+
+  async function handleReview(btn: HTMLButtonElement) {
+    const cfpId = btn.dataset.cfpId;
+    const status = btn.dataset.status as 'approved' | 'rejected';
+    const label = status === 'approved' ? '採択' : '不採択';
+
+    if (!confirm(`この応募を「${label}」にしますか？`)) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/api/cfp/${cfpId}/review`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${getToken()}`,
+        },
+        body: JSON.stringify({ status }),
+      });
+
+      if (res.ok) {
+        location.reload();
+      } else {
+        const json = await res.json();
+        alert(json.error?.message || 'レビューに失敗しました');
+      }
+    } catch {
+      alert('エラーが発生しました');
+    }
+  }
+</script>

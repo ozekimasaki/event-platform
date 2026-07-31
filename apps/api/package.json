@@ -9,21 +9,22 @@
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src/",
-    "test": "echo \"No tests yet\""
+    "test": "vitest run"
   },
   "dependencies": {
-    "hono": "^4.12.0",
+    "@event-platform/shared": "workspace:*",
     "@hono/zod-validator": "^0.7.0",
-    "jose": "^6.0.0",
     "@supabase/supabase-js": "^2.50.0",
-    "stripe": "^22.3.2",
+    "hono": "^4.12.0",
+    "jose": "^6.0.0",
     "qrcode": "^1.5.4",
-    "@event-platform/shared": "workspace:*"
+    "stripe": "^22.3.2"
   },
   "devDependencies": {
-    "typescript": "^7.0.2",
-    "wrangler": "^4.0.0",
     "@cloudflare/workers-types": "^4.20250730.0",
-    "@types/qrcode": "^1.5.5"
+    "@types/qrcode": "^1.5.5",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10",
+    "wrangler": "^4.0.0"
   }
 }

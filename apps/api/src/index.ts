@@ -18,6 +18,8 @@ import { apiKeys } from './routes/api-keys.js';
 import { search } from './routes/search.js';
 import { community } from './routes/community.js';
 import { eventSurveys, surveys } from './routes/surveys.js';
+import { sessions } from './routes/sessions.js';
+import { cfp } from './routes/cfp.js';
 import { authMiddleware, optionalAuthMiddleware } from './middleware/auth.js';
 import { CheckInCoordinator } from './durable-objects/check-in.js';
 import { EventChatRoom } from './durable-objects/chat.js';
@@ -86,6 +88,16 @@ app.route('/api/events', eventSurveys);
 // Survey routes (survey-scoped: mixed public/auth)
 app.use('/api/surveys/*', optionalAuthMiddleware);
 app.route('/api/surveys', surveys);
+
+// Session routes (public GET, auth-checked POST/PATCH/DELETE)
+app.use('/api/events/*', optionalAuthMiddleware);
+app.use('/api/sessions/*', optionalAuthMiddleware);
+app.route('/api', sessions);
+
+// CfP routes (public POST for submissions, auth-checked GET/PATCH)
+app.use('/api/events/*', optionalAuthMiddleware);
+app.use('/api/cfp/*', optionalAuthMiddleware);
+app.route('/api', cfp);
 
 // Support routes (mixed: some public FAQ, some auth-required tickets)
 app.route('/api', support);

@@ -1,0 +1,28 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "event-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-31",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": { "directory": "./dist" },
+  "kv_namespaces": [
+    { "binding": "CACHE_KV", "id": "<KV_CACHE_ID>" }
+  ],
+  "r2_buckets": [
+    { "binding": "STORAGE", "bucket_name": "event-platform-storage" }
+  ],
+  "queues": {
+    "producers": [
+      { "queue": "email-transactional", "binding": "TRANSACTIONAL_QUEUE" },
+      { "queue": "email-marketing", "binding": "MARKETING_QUEUE" }
+    ]
+  },
+  "durable_objects": {
+    "bindings": [
+      { "name": "CHECK_IN_COORDINATOR", "class_name": "CheckInCoordinator" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_classes": ["CheckInCoordinator"] }
+  ]
+}

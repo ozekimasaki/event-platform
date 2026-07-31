@@ -1,0 +1,19 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "event-worker-notification",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-31",
+  "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [
+    { "binding": "NOTIFICATION_DB", "database_name": "notifications", "database_id": "<NOTIFICATION_DB_ID>" }
+  ],
+  "queues": {
+    "consumers": [
+      {
+        "queue": "notification-push",
+        "max_batch_size": 20,
+        "max_batch_timeout": 30
+      }
+    ]
+  }
+}

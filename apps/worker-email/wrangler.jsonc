@@ -1,0 +1,30 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "event-worker-email",
+  "main": "src/email-sender.ts",
+  "compatibility_date": "2026-07-31",
+  "compatibility_flags": ["nodejs_compat"],
+  "send_email": [
+    { "name": "SEND_EMAIL" }
+  ],
+  "kv_namespaces": [
+    { "binding": "EMAIL_TEMPLATES_KV", "id": "<EMAIL_TEMPLATES_KV_ID>" }
+  ],
+  "d1_databases": [
+    { "binding": "EMAIL_LOG_DB", "database_name": "email-log", "database_id": "<EMAIL_LOG_DB_ID>" }
+  ],
+  "queues": {
+    "consumers": [
+      {
+        "queue": "email-transactional",
+        "max_batch_size": 10,
+        "max_batch_timeout": 30
+      },
+      {
+        "queue": "email-marketing",
+        "max_batch_size": 50,
+        "max_batch_timeout": 60
+      }
+    ]
+  }
+}

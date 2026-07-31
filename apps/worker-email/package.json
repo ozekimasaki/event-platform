@@ -1,0 +1,22 @@
+{
+  "name": "@event-platform/worker-email",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "build": "wrangler deploy --dry-run",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/",
+    "test": "echo \"No tests yet\""
+  },
+  "dependencies": {
+    "postal-mime": "^2.4.0"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "wrangler": "^4.0.0",
+    "@cloudflare/workers-types": "^4.20250730.0"
+  }
+}

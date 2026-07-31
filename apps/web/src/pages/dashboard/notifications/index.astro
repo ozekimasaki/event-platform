@@ -278,7 +278,7 @@ const formatDate = (dateStr: string): string => {
         .find(row => row.startsWith('sb-token='))
         ?.split('=')[1];
 
-      const res = await fetch(`${import.meta.env.PUBLIC_API_URL || 'http://localhost:8787'}/api/notifications/read-one`, {
+      const res = await fetch(`${import.meta.env.PUBLIC_API_URL || 'http://localhost:8787'}/api/notifications/read`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -288,7 +288,6 @@ const formatDate = (dateStr: string): string => {
       });
 
       if (res.ok) {
-        // Remove the button and dot, update row style
         const row = btn.closest('.divide-y > div');
         if (row) {
           row.classList.remove('bg-surface-soft');
@@ -332,3 +331,4 @@ const formatDate = (dateStr: string): string => {
     }
   }
 </script>
+

@@ -1,14 +1,21 @@
 ---
-export const prerender = true;
 import Layout from '../../layouts/Layout.astro';
-import Card from '../../components/ui/Card.astro';
-import Badge from '../../components/ui/Badge.astro';
-import type { Article } from '@event-platform/shared';
 
 const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787';
 
 const page = Number(Astro.url.searchParams.get('page') || '1');
 const limit = 12;
+
+interface Article {
+  id: string;
+  title: string;
+  slug: string;
+  excerpt: string | null;
+  cover_image_url: string | null;
+  published_at: string | null;
+  created_at: string;
+  status: string;
+}
 
 let articles: Article[] = [];
 let totalPages = 1;
@@ -30,7 +37,8 @@ try {
   console.error('Failed to fetch articles:', err);
 }
 
-const formatDate = (dateStr: string): string => {
+const formatDate = (dateStr: string | null): string => {
+  if (!dateStr) return '';
   return new Date(dateStr).toLocaleDateString('ja-JP', {
     year: 'numeric',
     month: 'long',
@@ -38,90 +46,86 @@ const formatDate = (dateStr: string): string => {
   });
 };
 
-const stripHtml = (html: string): string => {
-  return html.replace(/<[^>]*>/g, '').substring(0, 150);
+const truncateText = (text: string | null, maxLen: number = 120): string => {
+  if (!text) return '記事の概要がありません';
+  const stripped = text.replace(/<[^>]*>/g, '');
+  return stripped.length > maxLen ? stripped.substring(0, maxLen) + '...' : stripped;
 };
 ---
 
-<Layout title="ブログ" description="最新のニュースやお知らせ">
-  <main class="mx-auto max-w-4xl px-4 py-12 lg:px-6">
+<Layout title="ブログ" description="イベントプラットフォームのブログ・お知らせ">
+  <main class="mx-auto max-w-7xl px-4 py-12 lg:px-6">
     <!-- Page Header -->
     <div class="mb-10">
       <h1 class="display-md text-text-primary mb-2">ブログ</h1>
       <p class="body-lg text-text-secondary">
-        {total > 0 ? `${total}件の記事` : '最新のお知らせ'}
+        {total > 0 ? `最新の記事 ${total}件` : '最新の記事をお届けします'}
       </p>
     </div>
 
-    <!-- Articles List -->
+    <!-- Article Grid -->
     {articles.length > 0 ? (
-      <div class="flex flex-col gap-8">
-        {articles.map((article, index) => (
-          <article class:list={['group', index > 0 && 'border-t border-border-default pt-8']}>
-            <a href={`/blog/${article.slug}`} class="no-underline block">
-              {article.cover_image_url && (
-                <div class="mb-4 overflow-hidden rounded-md">
-                  <img
-                    src={article.cover_image_url}
-                    alt={article.title}
-                    class="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
-                    loading="lazy"
-                  />
-                </div>
-              )}
-
-              <div class="flex flex-col gap-2">
-                <div class="flex items-center gap-3 text-sm text-text-secondary">
-                  <time datetime={article.published_at || article.created_at}>
-                    {formatDate(article.published_at || article.created_at)}
-                  </time>
-                  {article.status && (
-                    <Badge variant={article.status === 'published' ? 'success' : 'default'}>
-                      {article.status === 'published' ? '公開中' : article.status}
-                    </Badge>
-                  )}
-                </div>
-
-                <h2 class="heading-md text-text-primary group-hover:text-accent-blue transition-colors">
-                  {article.title}
-                </h2>
-
-                {article.excerpt && (
-                  <p class="body-base text-text-secondary line-clamp-2">
-                    {article.excerpt}
-                  </p>
-                )}
-
-                {!article.excerpt && article.content && (
-                  <p class="body-base text-text-secondary line-clamp-2">
-                    {stripHtml(article.content)}...
-                  </p>
-                )}
-
-                <span class="text-sm text-accent-blue font-medium mt-1">
-                  続きを読む →
-                </span>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
+        {articles.map((article) => (
+          <a
+            href={`/blog/${article.slug}`}
+            class="group flex flex-col border border-border-default rounded-md overflow-hidden hover:shadow-md transition-shadow no-underline bg-surface-elevated"
+          >
+            {/* Cover Image */}
+            {article.cover_image_url ? (
+              <div class="aspect-video overflow-hidden bg-surface-soft">
+                <img
+                  src={article.cover_image_url}
+                  alt={article.title}
+                  class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  loading="lazy"
+                />
               </div>
-            </a>
-          </article>
+            ) : (
+              <div class="aspect-video bg-surface-soft flex items-center justify-center">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="text-text-secondary opacity-30">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <line x1="16" y1="13" x2="8" y2="13" />
+                  <line x1="16" y1="17" x2="8" y2="17" />
+                  <polyline points="10 9 9 9 8 9" />
+                </svg>
+              </div>
+            )}
+
+            {/* Card Body */}
+            <div class="flex flex-col flex-1 p-5">
+              <h2 class="heading-sm text-text-primary mb-2 group-hover:text-accent-blue transition-colors line-clamp-2">
+                {article.title}
+              </h2>
+              <p class="body-sm text-text-secondary mb-4 line-clamp-3 flex-1">
+                {truncateText(article.excerpt)}
+              </p>
+              <time class="caption-mono text-text-secondary" datetime={article.published_at || ''}>
+                {formatDate(article.published_at)}
+              </time>
+            </div>
+          </a>
         ))}
       </div>
     ) : (
-      <div class="text-center py-16 border border-border-default rounded-md">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="mx-auto text-text-secondary opacity-40 mb-4">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-          <polyline points="14 2 14 8 20 8" />
-          <line x1="16" y1="13" x2="8" y2="13" />
-          <line x1="16" y1="17" x2="8" y2="17" />
-        </svg>
-        <p class="heading-sm text-text-secondary mb-2">記事がありません</p>
-        <p class="body-sm text-text-secondary">まだ記事が投稿されていません</p>
+      <div class="text-center py-16">
+        <div class="text-text-secondary mb-4">
+          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="mx-auto opacity-40">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="16" y1="13" x2="8" y2="13" />
+            <line x1="16" y1="17" x2="8" y2="17" />
+          </svg>
+        </div>
+        <p class="heading-md text-text-secondary mb-2">記事がありません</p>
+        <p class="body-sm text-text-secondary">またご覧ください</p>
       </div>
     )}
 
     <!-- Pagination -->
     {totalPages > 1 && (
-      <nav class="flex items-center justify-center gap-3 mt-12" aria-label="ページネーション">
+      <nav class="flex items-center justify-center gap-3" aria-label="ページネーション">
         {page > 1 ? (
           <a
             href={`/blog?page=${page - 1}`}

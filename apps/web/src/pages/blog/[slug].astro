@@ -1,34 +1,62 @@
 ---
-import Layout from '../../layouts/Layout.astro';
-import Badge from '../../components/ui/Badge.astro';
-import type { Article } from '@event-platform/shared';
+import Layout from '../../../layouts/Layout.astro';
+
+export const prerender = false;
 
 const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787';
-const SITE_URL = import.meta.env.PUBLIC_SITE_URL || 'https://event-platform.pages.dev';
 
-const { slug } = Astro.params;
-
-let article: Article | null = null;
-let error = false;
-
-try {
-  const res = await fetch(`${API_BASE}/api/articles/${slug}`);
-  if (res.ok) {
-    const json = await res.json();
-    article = json.data;
-  } else {
-    error = true;
-  }
-} catch (err) {
-  console.error('Failed to fetch article:', err);
-  error = true;
+interface Article {
+  id: string;
+  title: string;
+  slug: string;
+  content: string;
+  excerpt: string | null;
+  cover_image_url: string | null;
+  published_at: string | null;
+  created_at: string;
+  updated_at: string | null;
+  organizer_id: string;
+  status: string;
 }
 
-if (error || !article) {
+// getStaticPaths for all article slugs
+export async function getStaticPaths() {
+  try {
+    const res = await fetch(`${API_BASE}/api/articles?limit=1000`);
+    if (!res.ok) return [];
+    const json = await res.json();
+    const articles = json.data || [];
+    return articles.map((article: Article) => ({
+      params: { slug: article.slug },
+      props: { article },
+    }));
+  } catch {
+    return [];
+  }
+}
+
+const { slug } = Astro.params;
+let article: Article | null = Astro.props.article ?? null;
+
+// Fallback: fetch article if not provided via props (SSR mode)
+if (!article && slug) {
+  try {
+    const res = await fetch(`${API_BASE}/api/articles/${slug}`);
+    if (res.ok) {
+      const json = await res.json();
+      article = json.data;
+    }
+  } catch (err) {
+    console.error('Failed to fetch article:', err);
+  }
+}
+
+if (!article) {
   return Astro.redirect('/blog');
 }
 
-const formatDate = (dateStr: string): string => {
+const formatDate = (dateStr: string | null): string => {
+  if (!dateStr) return '';
   return new Date(dateStr).toLocaleDateString('ja-JP', {
     year: 'numeric',
     month: 'long',
@@ -36,26 +64,21 @@ const formatDate = (dateStr: string): string => {
   });
 };
 
-// SEO metadata
-const seoTitle = article.seo_metadata?.meta_title || article.title;
-const seoDescription = article.seo_metadata?.meta_description || article.excerpt || article.content.replace(/<[^>]*>/g, '').substring(0, 160);
-const ogImage = article.seo_metadata?.og_image_url || article.cover_image_url || `${SITE_URL}/og-default.png`;
-const articleUrl = `${SITE_URL}/blog/${article.slug}`;
+const ogImageUrl = article.cover_image_url || `${Astro.site?.toString() || ''}/og-default.png`;
+const pageUrl = `${Astro.site?.toString() || ''}/blog/${article.slug}`;
+const description = article.excerpt
+  ? article.excerpt.replace(/<[^>]*>/g, '').substring(0, 160)
+  : article.content.replace(/<[^>]*>/g, '').substring(0, 160);
 
-// JSON-LD structured data
 const jsonLd = {
   '@context': 'https://schema.org',
-  '@type': 'BlogPosting',
+  '@type': 'Article',
   headline: article.title,
-  description: seoDescription,
-  image: ogImage,
-  url: articleUrl,
+  description,
+  image: ogImageUrl,
   datePublished: article.published_at || article.created_at,
-  dateModified: article.updated_at,
-  author: article.author_name ? {
-    '@type': 'Person',
-    name: article.author_name,
-  } : undefined,
+  dateModified: article.updated_at || article.created_at,
+  url: pageUrl,
   publisher: {
     '@type': 'Organization',
     name: 'Event Platform',
@@ -63,113 +86,178 @@ const jsonLd = {
 };
 ---
 
-<!doctype html>
-<html lang="ja">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>{seoTitle} | ブログ</title>
-    <meta name="description" content={seoDescription} />
+<Layout title={`${article.title} | ブログ`} description={description}>
+  <!-- OGP Meta Tags -->
+  <meta property="og:type" content="article" slot="head">
+  <meta property="og:title" content={article.title} slot="head">
+  <meta property="og:description" content={description} slot="head">
+  <meta property="og:url" content={pageUrl} slot="head">
+  <meta property="og:image" content={ogImageUrl} slot="head">
+  <meta name="twitter:card" content="summary_large_image" slot="head">
+  <meta name="twitter:title" content={article.title} slot="head">
+  <meta name="twitter:description" content={description} slot="head">
+  <meta name="twitter:image" content={ogImageUrl} slot="head">
+  <link rel="canonical" href={pageUrl} slot="head">
 
-    <!-- Open Graph -->
-    <meta property="og:type" content="article" />
-    <meta property="og:title" content={seoTitle} />
-    <meta property="og:description" content={seoDescription} />
-    <meta property="og:url" content={articleUrl} />
-    <meta property="og:image" content={ogImage} />
-    <meta property="og:site_name" content="Event Platform" />
+  <!-- JSON-LD Structured Data -->
+  <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} slot="head" />
 
-    <!-- Twitter Card -->
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content={seoTitle} />
-    <meta name="twitter:description" content={seoDescription} />
-    <meta name="twitter:image" content={ogImage} />
-
-    <!-- Canonical -->
-    <link rel="canonical" href={articleUrl} />
-
-    <!-- JSON-LD -->
-    <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
-
-    <!-- Font preloads -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;600;700&display=swap"
-      rel="stylesheet"
-    />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <style>
-      @import "tailwindcss";
-    </style>
-  </head>
-  <body class="min-h-screen bg-surface-base text-text-primary">
-    <!-- Minimal nav for blog -->
-    <nav class="border-b border-border-default bg-surface-base sticky top-0 z-50">
-      <div class="mx-auto max-w-4xl px-4 py-3 flex items-center gap-4">
-        <a href="/blog" class="text-text-secondary hover:text-text-primary transition-colors no-underline text-sm">
-          ← ブログ一覧
-        </a>
-      </div>
+  <main class="mx-auto max-w-3xl px-4 py-12 lg:px-6">
+    {/* Breadcrumb */}
+    <nav class="flex items-center gap-2 text-sm mb-8" aria-label="パンくずリスト">
+      <a href="/blog" class="text-text-secondary hover:text-text-primary transition-colors no-underline">
+        ブログ
+      </a>
+      <span class="text-text-secondary">/</span>
+      <span class="text-text-primary font-medium truncate">{article.title}</span>
     </nav>
 
-    <article class="mx-auto max-w-4xl px-4 py-12 lg:px-6">
-      <!-- Article Header -->
+    <article>
+      {/* Article Header */}
       <header class="mb-8">
-        {article.cover_image_url && (
-          <div class="mb-6 overflow-hidden rounded-md">
-            <img
-              src={article.cover_image_url}
-              alt={article.title}
-              class="w-full h-64 sm:h-80 object-cover"
-            />
-          </div>
-        )}
-
-        <div class="flex items-center gap-3 text-sm text-text-secondary mb-4">
-          <time datetime={article.published_at || article.created_at}>
-            {formatDate(article.published_at || article.created_at)}
-          </time>
-          {article.status && (
-            <Badge variant={article.status === 'published' ? 'success' : 'default'}>
-              {article.status === 'published' ? '公開中' : article.status}
-            </Badge>
-          )}
-          {article.author_name && (
-            <span class="text-text-secondary">by {article.author_name}</span>
-          )}
-        </div>
-
-        <h1 class="display-lg text-text-primary mb-4">{article.title}</h1>
-
+        <time class="caption-mono text-text-secondary block mb-3" datetime={article.published_at || article.created_at}>
+          {formatDate(article.published_at || article.created_at)}
+        </time>
+        <h1 class="display-md text-text-primary mb-4">{article.title}</h1>
         {article.excerpt && (
-          <p class="body-lg text-text-secondary border-l-2 border-accent-blue pl-4">
-            {article.excerpt}
-          </p>
+          <p class="body-lg text-text-secondary">{article.excerpt}</p>
         )}
       </header>
 
-      <!-- Article Content -->
-      <div class="prose prose-neutral max-w-none" set:html={article.content} />
+      {/* Cover Image */}
+      {article.cover_image_url && (
+        <div class="mb-8 rounded-md overflow-hidden">
+          <img
+            src={article.cover_image_url}
+            alt={article.title}
+            class="w-full h-auto no-dim"
+          />
+        </div>
+      )}
 
-      <!-- Article Footer -->
+      {/* Article Body */}
+      <div class="article-content" set:html={article.content} />
+
+      {/* Article Footer */}
       <footer class="mt-12 pt-8 border-t border-border-default">
         <div class="flex items-center justify-between flex-wrap gap-4">
-          <a href="/blog" class="text-sm text-accent-blue hover:underline no-underline">
-            ← ブログ一覧に戻る
+          <a
+            href="/blog"
+            class="inline-flex items-center gap-2 text-sm text-accent-blue hover:text-accent-blue/80 transition-colors no-underline font-medium"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="19" y1="12" x2="5" y2="12" />
+              <polyline points="12 19 5 12 12 5" />
+            </svg>
+            ブログ一覧へ戻る
           </a>
-          <div class="flex gap-2">
-            <a
-              href={`https://twitter.com/intent/tweet?url=${encodeURIComponent(articleUrl)}&text=${encodeURIComponent(article.title)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              class="inline-flex items-center gap-1 px-3 py-1.5 text-sm border border-border-default rounded-sm text-text-secondary hover:text-text-primary hover:bg-surface-soft transition-colors no-underline"
-            >
-              X でシェア
-            </a>
-          </div>
+          {article.updated_at && article.updated_at !== article.created_at && (
+            <time class="caption-mono text-text-secondary" datetime={article.updated_at}>
+              最終更新: {formatDate(article.updated_at)}
+            </time>
+          )}
         </div>
       </footer>
     </article>
-  </body>
-</html>
+  </main>
+
+  <style>
+    .article-content {
+      font-size: 1.0625rem;
+      line-height: 1.8;
+      color: var(--text-primary);
+    }
+    .article-content :global(h2) {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin: 2.5rem 0 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border-default);
+    }
+    .article-content :global(h3) {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin: 2rem 0 0.75rem;
+    }
+    .article-content :global(h4) {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin: 1.5rem 0 0.5rem;
+    }
+    .article-content :global(p) {
+      margin: 1rem 0;
+    }
+    .article-content :global(ul),
+    .article-content :global(ol) {
+      padding-left: 1.5rem;
+      margin: 1rem 0;
+    }
+    .article-content :global(li) {
+      margin: 0.4rem 0;
+    }
+    .article-content :global(blockquote) {
+      border-left: 3px solid var(--accent-blue);
+      padding: 0.75rem 1.25rem;
+      margin: 1.5rem 0;
+      background: var(--surface-soft);
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      color: var(--text-secondary);
+    }
+    .article-content :global(pre) {
+      background: var(--surface-medium);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-sm);
+      padding: 1rem 1.25rem;
+      overflow-x: auto;
+      margin: 1.5rem 0;
+      font-family: var(--font-mono);
+      font-size: 0.875rem;
+      line-height: 1.6;
+    }
+    .article-content :global(code) {
+      font-family: var(--font-mono);
+      font-size: 0.875em;
+      background: var(--surface-medium);
+      padding: 0.15em 0.4em;
+      border-radius: 4px;
+    }
+    .article-content :global(pre code) {
+      background: none;
+      padding: 0;
+    }
+    .article-content :global(img) {
+      max-width: 100%;
+      height: auto;
+      border-radius: var(--radius-sm);
+      margin: 1.5rem 0;
+    }
+    .article-content :global(a) {
+      color: var(--accent-blue);
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    .article-content :global(a:hover) {
+      opacity: 0.8;
+    }
+    .article-content :global(hr) {
+      border: none;
+      border-top: 1px solid var(--border-default);
+      margin: 2rem 0;
+    }
+    .article-content :global(table) {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1.5rem 0;
+    }
+    .article-content :global(th),
+    .article-content :global(td) {
+      border: 1px solid var(--border-default);
+      padding: 0.5rem 0.75rem;
+      text-align: left;
+    }
+    .article-content :global(th) {
+      background: var(--surface-soft);
+      font-weight: 600;
+    }
+  </style>
+</Layout>

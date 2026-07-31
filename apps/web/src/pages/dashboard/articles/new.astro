@@ -1,236 +1,170 @@
 ---
 import DashboardLayout from '../../layout.astro';
-import Button from '../../../components/ui/Button.astro';
-import Card from '../../../components/ui/Card.astro';
-import BlogEditor from '../../../components/BlogEditor';
+import Button from '../../../../components/ui/Button.astro';
+import Input from '../../../../components/ui/Input.astro';
+import BlogEditor from '../../../../components/BlogEditor';
 
-const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787';
+const breadcrumbs = [
+  { label: '記事管理', href: '/dashboard/articles' },
+  { label: '新規記事作成' },
+];
 ---
 
-<DashboardLayout
-  title="新規記事作成"
-  breadcrumbs={[{ label: '記事管理', href: '/dashboard/articles' }, { label: '新規作成' }]}
->
-  <div class="max-w-4xl">
+<DashboardLayout title="新規記事作成" {breadcrumbs}>
+  <div class="max-w-3xl">
     <h1 class="heading-lg text-text-primary mb-6">新規記事作成</h1>
 
     <form id="article-form" class="flex flex-col gap-6">
       <!-- Title -->
-      <Card padding="md">
-        <div class="flex flex-col gap-4">
-          <div>
-            <label for="title" class="block text-sm font-medium text-text-primary mb-1.5">
-              タイトル <span class="text-danger">*</span>
-            </label>
-            <input
-              type="text"
-              id="title"
-              name="title"
-              required
-              maxlength="300"
-              placeholder="記事のタイトルを入力..."
-              class="w-full px-3 py-2.5 text-base text-text-primary bg-surface-base border border-border-default rounded-sm min-h-[44px] focus:outline-2 focus:outline-accent-blue focus:border-accent-blue"
-            />
-          </div>
+      <Input
+        label="タイトル *"
+        name="title"
+        id="title"
+        placeholder="記事のタイトルを入力してください"
+        required
+      />
 
-          <div>
-            <label for="slug" class="block text-sm font-medium text-text-primary mb-1.5">
-              スラッグ（URL）
-            </label>
-            <div class="flex items-center gap-2">
-              <span class="text-sm text-text-secondary whitespace-nowrap">/blog/</span>
-              <input
-                type="text"
-                id="slug"
-                name="slug"
-                maxlength="300"
-                pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
-                placeholder="auto-generated"
-                class="w-full px-3 py-2.5 text-base text-text-primary bg-surface-base border border-border-default rounded-sm min-h-[44px] focus:outline-2 focus:outline-accent-blue focus:border-accent-blue"
-              />
-            </div>
-            <p class="text-xs text-text-secondary mt-1">空欄の場合は自動生成されます</p>
-          </div>
+      <!-- Slug -->
+      <div class="flex flex-col gap-1.5">
+        <label for="slug" class="text-sm font-medium text-text-primary">
+          スラッグ (URL)
+        </label>
+        <div class="flex items-center gap-2">
+          <span class="text-text-secondary text-sm">/blog/</span>
+          <input
+            type="text"
+            id="slug"
+            name="slug"
+            placeholder="auto-generated"
+            class="w-full px-3 py-2.5 text-base text-text-primary bg-surface-base border border-border-default rounded-sm min-h-[44px] focus:outline-2 focus:outline-accent-blue focus:border-accent-blue"
+          />
         </div>
-      </Card>
+        <p class="text-xs text-text-secondary">未入力の場合はタイトルから自動生成されます</p>
+      </div>
 
-      <!-- Content -->
-      <Card padding="md">
-        <div class="flex flex-col gap-2">
-          <label class="block text-sm font-medium text-text-primary mb-1.5">
-            本文 <span class="text-danger">*</span>
-          </label>
-          <BlogEditor client:load content="" onChange="" />
-          <input type="hidden" id="content" name="content" value="" />
+      <!-- Excerpt -->
+      <div class="flex flex-col gap-1.5">
+        <label for="excerpt" class="text-sm font-medium text-text-primary">抜粋 / 概要</label>
+        <textarea
+          id="excerpt"
+          name="excerpt"
+          rows="3"
+          placeholder="記事の概要を簡潔に記載してください（SEOや一覧表示に使用されます）"
+          class="w-full px-3 py-2.5 text-base text-text-primary bg-surface-base border border-border-default rounded-sm min-h-[80px] focus:outline-2 focus:outline-accent-blue focus:border-accent-blue resize-y"
+        ></textarea>
+      </div>
+
+      <!-- Content (BlogEditor) -->
+      <div class="flex flex-col gap-1.5">
+        <label class="text-sm font-medium text-text-primary">本文 *</label>
+        <BlogEditor client:load content="" onChange="" />
+        <input type="hidden" name="content" id="content" />
+      </div>
+
+      <!-- Cover Image URL -->
+      <Input
+        label="カバー画像URL"
+        name="cover_image_url"
+        id="cover_image_url"
+        type="url"
+        placeholder="https://example.com/image.jpg"
+      />
+
+      <!-- Status & Published Date -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="flex flex-col gap-1.5">
+          <label for="status" class="text-sm font-medium text-text-primary">ステータス *</label>
+          <select
+            id="status"
+            name="status"
+            class="w-full px-3 py-2.5 text-base text-text-primary bg-surface-base border border-border-default rounded-sm min-h-[44px] focus:outline-2 focus:outline-accent-blue focus:border-accent-blue"
+          >
+            <option value="draft">下書き</option>
+            <option value="published">公開</option>
+            <option value="scheduled">公開予約</option>
+          </select>
         </div>
-      </Card>
-
-      <!-- Excerpt & Cover Image -->
-      <Card padding="md">
-        <div class="flex flex-col gap-4">
-          <div>
-            <label for="excerpt" class="block text-sm font-medium text-text-primary mb-1.5">
-              抜粋（メタディスクリプション）
-            </label>
-            <textarea
-              id="excerpt"
-              name="excerpt"
-              maxlength="500"
-              rows="3"
-              placeholder="記事の要約を入力（最大500文字）..."
-              class="w-full px-3 py-2.5 text-base text-text-primary bg-surface-base border border-border-default rounded-sm focus:outline-2 focus:outline-accent-blue focus:border-accent-blue resize-y"
-            />
-          </div>
-
-          <div>
-            <label for="cover_image_url" class="block text-sm font-medium text-text-primary mb-1.5">
-              カバー画像URL
-            </label>
-            <input
-              type="url"
-              id="cover_image_url"
-              name="cover_image_url"
-              placeholder="https://example.com/image.jpg"
-              class="w-full px-3 py-2.5 text-base text-text-primary bg-surface-base border border-border-default rounded-sm min-h-[44px] focus:outline-2 focus:outline-accent-blue focus:border-accent-blue"
-            />
-          </div>
+        <div class="flex flex-col gap-1.5">
+          <label for="published_at" class="text-sm font-medium text-text-primary">公開日時</label>
+          <input
+            type="datetime-local"
+            id="published_at"
+            name="published_at"
+            class="w-full px-3 py-2.5 text-base text-text-primary bg-surface-base border border-border-default rounded-sm min-h-[44px] focus:outline-2 focus:outline-accent-blue focus:border-accent-blue"
+          />
+          <p class="text-xs text-text-secondary">「公開」または「公開予約」の場合に設定</p>
         </div>
-      </Card>
-
-      <!-- SEO Metadata -->
-      <Card padding="md">
-        <details class="flex flex-col gap-4">
-          <summary class="text-sm font-medium text-text-primary cursor-pointer select-none mb-2">
-            SEO設定（任意）
-          </summary>
-          <div class="flex flex-col gap-4">
-            <div>
-              <label for="meta_title" class="block text-sm font-medium text-text-primary mb-1.5">
-                メタタイトル
-              </label>
-              <input
-                type="text"
-                id="meta_title"
-                name="meta_title"
-                maxlength="200"
-                placeholder="SEO用のタイトル（空欄の場合は記事タイトルが使用されます）"
-                class="w-full px-3 py-2.5 text-base text-text-primary bg-surface-base border border-border-default rounded-sm min-h-[44px] focus:outline-2 focus:outline-accent-blue focus:border-accent-blue"
-              />
-            </div>
-            <div>
-              <label for="meta_description" class="block text-sm font-medium text-text-primary mb-1.5">
-                メタディスクリプション
-              </label>
-              <textarea
-                id="meta_description"
-                name="meta_description"
-                maxlength="500"
-                rows="2"
-                placeholder="SEO用の説明（空欄の場合は抜粋が使用されます）"
-                class="w-full px-3 py-2.5 text-base text-text-primary bg-surface-base border border-border-default rounded-sm focus:outline-2 focus:outline-accent-blue focus:border-accent-blue resize-y"
-              />
-            </div>
-            <div>
-              <label for="og_image_url" class="block text-sm font-medium text-text-primary mb-1.5">
-                OGP画像URL
-              </label>
-              <input
-                type="url"
-                id="og_image_url"
-                name="og_image_url"
-                placeholder="https://example.com/og-image.jpg"
-                class="w-full px-3 py-2.5 text-base text-text-primary bg-surface-base border border-border-default rounded-sm min-h-[44px] focus:outline-2 focus:outline-accent-blue focus:border-accent-blue"
-              />
-            </div>
-          </div>
-        </details>
-      </Card>
+      </div>
 
       <!-- Actions -->
-      <div class="flex items-center gap-3 flex-wrap">
+      <div class="flex items-center gap-3 pt-4 border-t border-border-default">
         <Button type="submit" variant="accent" id="submit-btn">
-          下書きとして保存
+          作成する
         </Button>
-        <Button type="button" variant="primary" id="publish-btn" onclick="publishArticle()">
-          公開する
-        </Button>
-        <a href="/dashboard/articles" class="text-sm text-text-secondary hover:text-text-primary transition-colors no-underline">
+        <Button variant="secondary" href="/dashboard/articles">
           キャンセル
-        </a>
+        </Button>
+        <span id="form-status" class="text-sm text-text-secondary ml-auto"></span>
       </div>
     </form>
   </div>
 </DashboardLayout>
 
 <script>
-  const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787';
+  // Auto-generate slug from title
+  const titleInput = document.getElementById('title') as HTMLInputElement;
+  const slugInput = document.getElementById('slug') as HTMLInputElement;
+  let slugManuallyEdited = false;
 
-  // Handle BlogEditor content changes
-  document.addEventListener('DOMContentLoaded', () => {
-    const form = document.getElementById('article-form')!;
-    const editorIsland = form.querySelector('astro-island');
-
-    // Listen for content changes from the React island
-    const observer = new MutationObserver(() => {
-      const hiddenInput = document.getElementById('content') as HTMLInputElement;
-      if (hiddenInput && !hiddenInput.value) {
-        // Try to get content from the TipTap editor
-        const tiptap = document.querySelector('.tiptap');
-        if (tiptap) {
-          hiddenInput.value = tiptap.innerHTML;
-        }
-      }
-    });
-
-    if (editorIsland) {
-      observer.observe(editorIsland, { childList: true, subtree: true });
-    }
-
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      await submitArticle(false);
-    });
+  slugInput?.addEventListener('input', () => {
+    slugManuallyEdited = true;
   });
 
-  async function submitArticle(publish: boolean) {
-    const form = document.getElementById('article-form') as HTMLFormElement;
-    const title = (document.getElementById('title') as HTMLInputElement).value.trim();
-    const slug = (document.getElementById('slug') as HTMLInputElement).value.trim();
-    const excerpt = (document.getElementById('excerpt') as HTMLTextAreaElement).value.trim();
-    const coverImageUrl = (document.getElementById('cover_image_url') as HTMLInputElement).value.trim();
+  titleInput?.addEventListener('input', () => {
+    if (slugManuallyEdited) return;
+    const slug = titleInput.value
+      .toLowerCase()
+      .trim()
+      .replace(/[^\w\s-]/g, '')
+      .replace(/[\s_]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .substring(0, 100);
+    if (slugInput) slugInput.value = slug;
+  });
 
-    // Get content from tiptap
-    const tiptap = document.querySelector('.tiptap');
-    const content = tiptap ? tiptap.innerHTML : '';
+  // Handle form submission
+  const form = document.getElementById('article-form') as HTMLFormElement;
+  const submitBtn = document.getElementById('submit-btn') as HTMLButtonElement;
+  const formStatus = document.getElementById('form-status') as HTMLSpanElement;
 
-    if (!title) {
-      alert('タイトルを入力してください');
-      return;
-    }
-    if (!content || content === '<p></p>') {
-      alert('本文を入力してください');
-      return;
-    }
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!form || !submitBtn) return;
 
-    const body: Record<string, unknown> = { title, content };
-    if (slug) body.slug = slug;
-    if (excerpt) body.excerpt = excerpt;
-    if (coverImageUrl) body.cover_image_url = coverImageUrl;
+    submitBtn.disabled = true;
+    if (formStatus) formStatus.textContent = '送信中...';
 
-    // SEO metadata
-    const metaTitle = (document.getElementById('meta_title') as HTMLInputElement)?.value.trim();
-    const metaDescription = (document.getElementById('meta_description') as HTMLTextAreaElement)?.value.trim();
-    const ogImageUrl = (document.getElementById('og_image_url') as HTMLInputElement)?.value.trim();
-    if (metaTitle || metaDescription || ogImageUrl) {
-      body.seo_metadata = {
-        meta_title: metaTitle || undefined,
-        meta_description: metaDescription || undefined,
-        og_image_url: ogImageUrl || undefined,
-      };
+    const formData = new FormData(form);
+    const status = formData.get('status') as string;
+    const publishedAtRaw = formData.get('published_at') as string;
+
+    let published_at: string | null = null;
+    if (status === 'published') {
+      published_at = publishedAtRaw ? new Date(publishedAtRaw).toISOString() : new Date().toISOString();
+    } else if (status === 'scheduled' && publishedAtRaw) {
+      published_at = new Date(publishedAtRaw).toISOString();
     }
 
-    if (publish) {
-      body.published_at = new Date().toISOString();
+    const data: Record<string, unknown> = {
+      title: formData.get('title'),
+      slug: formData.get('slug') || undefined,
+      content: formData.get('content') || '',
+      excerpt: formData.get('excerpt') || undefined,
+      cover_image_url: formData.get('cover_image_url') || undefined,
+    };
+
+    if (published_at) {
+      data.published_at = published_at;
     }
 
     try {
@@ -239,29 +173,27 @@ const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787';
         .find(row => row.startsWith('sb-token='))
         ?.split('=')[1];
 
-      const res = await fetch(`${API_BASE}/api/articles`, {
+      const res = await fetch('/api/articles', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify(data),
       });
 
       if (res.ok) {
         const json = await res.json();
-        alert(publish ? '記事を公開しました' : '下書きを保存しました');
-        window.location.href = `/dashboard/articles/${json.data.id}/edit`;
+        if (formStatus) formStatus.textContent = '';
+        window.location.href = `/dashboard/articles/${json.data.id}/edit?created=1`;
       } else {
         const err = await res.json();
-        alert(`エラー: ${err.error?.message || '保存に失敗しました'}`);
+        if (formStatus) formStatus.textContent = err.error?.message || 'エラーが発生しました';
+        submitBtn.disabled = false;
       }
     } catch {
-      alert('ネットワークエラーが発生しました');
+      if (formStatus) formStatus.textContent = 'ネットワークエラーが発生しました';
+      submitBtn.disabled = false;
     }
-  }
-
-  async function publishArticle() {
-    await submitArticle(true);
-  }
+  });
 </script>

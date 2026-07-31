@@ -1,4 +1,10 @@
 ---
+import '../styles/tailwind.css';
+import { themeInitScript } from '../components/ThemeInit';
+import NavBar from '../components/layout/NavBar.astro';
+import Footer from '../components/layout/Footer.astro';
+import { ThemeToggle } from '../components/ThemeToggle';
+
 interface Props {
   title?: string;
   description?: string;
@@ -8,24 +14,34 @@ const { title = 'Event Platform', description = 'イベント管理プラット�
 ---
 
 <!doctype html>
-<html lang="ja" data-theme="light">
+<html lang="ja">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content={description} />
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0a0a0a" media="(prefers-color-scheme: dark)" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <title>{title}</title>
+
+    <!-- Font preloads -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
 
     <!-- Theme initialization (FOUC prevention) -->
-    <script is:inline>
-      (function() {
-        const theme = localStorage.getItem('theme') ||
-          (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-        document.documentElement.setAttribute('data-theme', theme);
-      })();
-    </script>
+    <script is:inline set:html={themeInitScript} />
+
+    <title>{title}</title>
   </head>
-  <body>
+  <body class="min-h-screen bg-surface-base text-text-primary">
+    <NavBar>
+      <ThemeToggle slot="theme-toggle" client:load />
+      <ThemeToggle slot="theme-toggle-mobile" client:load />
+    </NavBar>
     <slot />
+    <Footer />
   </body>
 </html>

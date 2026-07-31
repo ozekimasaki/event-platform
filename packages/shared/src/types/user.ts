@@ -50,3 +50,58 @@ export interface UpdateProfileInput {
   website?: string;
   twitter_handle?: string;
 }
+
+// ============================================
+// AUTH TYPES
+// ============================================
+
+// OAuth providers supported by the platform
+export type OAuthProvider = 'google' | 'github';
+
+// Auth tokens returned after login/signup
+export interface AuthTokens {
+  access_token: string;
+  refresh_token: string;
+  expires_in: number;
+  expires_at: number;
+  token_type: 'bearer';
+}
+
+// Login request body
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+// Signup request body
+export interface SignupRequest {
+  email: string;
+  password: string;
+  display_name?: string;
+}
+
+// OAuth callback request body
+export interface OAuthCallbackRequest {
+  code: string;
+  provider: OAuthProvider;
+}
+
+// Current user response (me endpoint)
+export interface CurrentUser {
+  id: string;
+  email: string;
+  display_name: string;
+  avatar_url?: string;
+  created_at: string;
+}
+
+// Decoded JWT payload from Supabase
+export interface SupabaseJWTPayload {
+  sub: string;
+  email?: string;
+  role?: string;
+  exp?: number;
+  iat?: number;
+  app_metadata?: Record<string, unknown>;
+  user_metadata?: Record<string, unknown>;
+}

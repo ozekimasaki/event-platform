@@ -434,6 +434,166 @@ CREATE POLICY "Users can view own notifications"
 CREATE POLICY "Users can update own notifications"
   ON notifications FOR UPDATE USING (auth.uid() = user_id);
 
+-- Tickets policies (scoped via events → organizer)
+CREATE POLICY "Tickets for published events are viewable by everyone"
+  ON tickets FOR SELECT USING (EXISTS (
+    SELECT 1 FROM events WHERE events.id = tickets.event_id
+    AND (events.status = 'published' OR events.organizer_id IN (
+      SELECT id FROM organizers WHERE user_id = auth.uid()
+    ))
+  ));
+
+CREATE POLICY "Organizers can manage tickets for own events"
+  ON tickets FOR ALL USING (EXISTS (
+    SELECT 1 FROM events WHERE events.id = tickets.event_id
+    AND events.organizer_id IN (
+      SELECT id FROM organizers WHERE user_id = auth.uid()
+    )
+  ));
+
+-- Event staff policies
+CREATE POLICY "Staff can view own event assignments"
+  ON event_staff FOR SELECT USING (auth.uid() = user_id OR EXISTS (
+    SELECT 1 FROM events WHERE events.id = event_staff.event_id
+    AND events.organizer_id IN (
+      SELECT id FROM organizers WHERE user_id = auth.uid()
+    )
+  ));
+
+CREATE POLICY "Organizers can manage staff for own events"
+  ON event_staff FOR ALL USING (EXISTS (
+    SELECT 1 FROM events WHERE events.id = event_staff.event_id
+    AND events.organizer_id IN (
+      SELECT id FROM organizers WHERE user_id = auth.uid()
+    )
+  ));
+
+-- Sessions policies (scoped via events → organizer)
+CREATE POLICY "Sessions for published events are viewable by everyone"
+  ON sessions FOR SELECT USING (EXISTS (
+    SELECT 1 FROM events WHERE events.id = sessions.event_id
+    AND (events.status = 'published' OR events.organizer_id IN (
+      SELECT id FROM organizers WHERE user_id = auth.uid()
+    ))
+  ));
+
+CREATE POLICY "Organizers can manage sessions for own events"
+  ON sessions FOR ALL USING (EXISTS (
+    SELECT 1 FROM events WHERE events.id = sessions.event_id
+    AND events.organizer_id IN (
+      SELECT id FROM organizers WHERE user_id = auth.uid()
+    )
+  ));
+
+-- Speaker materials policies (scoped via sessions → events → organizer)
+CREATE POLICY "Materials for published events are viewable by everyone"
+  ON speaker_materials FOR SELECT USING (EXISTS (
+    SELECT 1 FROM sessions JOIN events ON events.id = sessions.event_id
+    WHERE sessions.id = speaker_materials.session_id
+    AND (events.status = 'published' OR events.organizer_id IN (
+      SELECT id FROM organizers WHERE user_id = auth.uid()
+    ))
+  ));
+
+CREATE POLICY "Organizers can manage materials for own events"
+  ON speaker_materials FOR ALL USING (EXISTS (
+    SELECT 1 FROM sessions JOIN events ON events.id = sessions.event_id
+    WHERE sessions.id = speaker_materials.session_id
+    AND events.organizer_id IN (
+      SELECT id FROM organizers WHERE user_id = auth.uid()
+    )
+  ));
+
+-- Articles policies
+CREATE POLICY "Published articles are viewable by everyone"
+  ON articles FOR SELECT USING (published_at IS NOT NULL OR organizer_id IN (
+    SELECT id FROM organizers WHERE user_id = auth.uid()
+  ));
+
+CREATE POLICY "Organizers can manage own articles"
+  ON articles FOR ALL USING (organizer_id IN (
+    SELECT id FROM organizers WHERE user_id = auth.uid()
+  ));
+
+-- Surveys policies (scoped via events → organizer)
+CREATE POLICY "Active surveys are viewable by everyone"
+  ON surveys FOR SELECT USING (is_active = TRUE OR EXISTS (
+    SELECT 1 FROM events WHERE events.id = surveys.event_id
+    AND events.organizer_id IN (
+      SELECT id FROM organizers WHERE user_id = auth.uid()
+    )
+  ));
+
+CREATE POLICY "Organizers can manage surveys for own events"
+  ON surveys FOR ALL USING (EXISTS (
+    SELECT 1 FROM events WHERE events.id = surveys.event_id
+    AND events.organizer_id IN (
+      SELECT id FROM organizers WHERE user_id = auth.uid()
+    )
+  ));
+
+-- Survey responses policies
+CREATE POLICY "Users can view own survey responses"
+  ON survey_responses FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can create own survey responses"
+  ON survey_responses FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own survey responses"
+  ON survey_responses FOR UPDATE USING (auth.uid() = user_id);
+
+CREATE POLICY "Organizers can view responses for own event surveys"
+  ON survey_responses FOR SELECT USING (EXISTS (
+    SELECT 1 FROM surveys JOIN events ON events.id = surveys.event_id
+    WHERE surveys.id = survey_responses.survey_id
+    AND events.organizer_id IN (
+      SELECT id FROM organizers WHERE user_id = auth.uid()
+    )
+  ));
+
+-- Chat messages policies
+CREATE POLICY "Participants can view chat messages for registered events"
+  ON chat_messages FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM registrations WHERE registrations.event_id = chat_messages.event_id
+      AND registrations.user_id = auth.uid() AND registrations.status != 'cancelled'
+    )
+    OR EXISTS (
+      SELECT 1 FROM events WHERE events.id = chat_messages.event_id
+      AND events.organizer_id IN (
+        SELECT id FROM organizers WHERE user_id = auth.uid()
+      )
+    )
+  );
+
+CREATE POLICY "Authenticated users can send chat messages"
+  ON chat_messages FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+-- API keys policies
+CREATE POLICY "Organizers can view own API keys"
+  ON api_keys FOR SELECT USING (organizer_id IN (
+    SELECT id FROM organizers WHERE user_id = auth.uid()
+  ));
+
+CREATE POLICY "Organizers can manage own API keys"
+  ON api_keys FOR ALL USING (organizer_id IN (
+    SELECT id FROM organizers WHERE user_id = auth.uid()
+  ));
+
+-- Webhooks policies
+CREATE POLICY "Organizers can view own webhooks"
+  ON webhooks FOR SELECT USING (organizer_id IN (
+    SELECT id FROM organizers WHERE user_id = auth.uid()
+  ));
+
+CREATE POLICY "Organizers can manage own webhooks"
+  ON webhooks FOR ALL USING (organizer_id IN (
+    SELECT id FROM organizers WHERE user_id = auth.uid()
+  ));
+
+-- Email log policies (service role only - no user policies needed)
+-- email_log is accessed only via service role key from server-side
+
 -- Support tickets policies
 CREATE POLICY "Users can view own support tickets"
   ON support_tickets FOR SELECT USING (auth.uid() = user_id);

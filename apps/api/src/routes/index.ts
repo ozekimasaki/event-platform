@@ -1,7 +1,8 @@
 import { Hono } from 'hono';
+import type { Env } from '../services/supabase.js';
 
 // Create router
-const routes = new Hono();
+const routes = new Hono<{ Bindings: Env }>();
 
 // Events routes placeholder
 routes.get('/events', (c) => {

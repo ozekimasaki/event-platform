@@ -1,3 +1,5 @@
+import type { Env } from '../services/supabase.js';
+
 /**
  * CheckInCoordinator Durable Object
  *
@@ -6,11 +8,9 @@
  */
 export class CheckInCoordinator {
   private state: DurableObjectState;
-  private env: Env;
 
-  constructor(state: DurableObjectState, env: Env) {
+  constructor(state: DurableObjectState, _env: Env) {
     this.state = state;
-    this.env = env;
   }
 
   async fetch(request: Request): Promise<Response> {

@@ -49,6 +49,4 @@ export const eventQuerySchema = z.object({
   tag: z.string().max(50).optional(),
 });
 
-export type CreateEventInput = z.infer<typeof createEventSchema>;
-export type UpdateEventInput = z.infer<typeof updateEventSchema>;
 export type EventQueryInput = z.infer<typeof eventQuerySchema>;

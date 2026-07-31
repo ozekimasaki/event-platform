@@ -1,13 +1,227 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import Button from '../components/ui/Button.astro';
+import Card from '../components/ui/Card.astro';
+import Badge from '../components/ui/Badge.astro';
+import Input from '../components/ui/Input.astro';
 ---
 
 <Layout title="Event Platform - ホーム">
-  <main class="min-h-screen flex items-center justify-center">
-    <div class="text-center">
-      <h1 class="text-4xl font-bold mb-4">Event Platform</h1>
-      <p class="text-lg text-gray-600">イベント管理プラットフォーム</p>
-      <p class="mt-8 text-sm text-gray-400">Coming Soon...</p>
+  <!-- Hero Section -->
+  <section class="relative overflow-hidden">
+    <div class="mx-auto max-w-7xl px-4 py-20 lg:px-6 lg:py-32">
+      <div class="flex flex-col items-center text-center">
+        <Badge variant="info" class="mb-6">
+          <span class="caption-mono">v1.0 ベータ公開中</span>
+        </Badge>
+
+        <h1 class="display-xl text-text-primary mb-6 max-w-3xl">
+          イベント体験を、<br />
+          <span class="text-accent-blue">次のステージ</span>へ。
+        </h1>
+
+        <p class="body-lg text-text-secondary max-w-xl mb-10">
+          作成・集客・運営・分析をワンストップで。
+          コミュニティイベントからカンファレンスまで、最高の体験を設計できます。
+        </p>
+
+        <div class="flex flex-col sm:flex-row items-center gap-4">
+          <Button variant="accent" size="lg">無料で始める</Button>
+          <Button variant="secondary" size="lg">デモを見る</Button>
+        </div>
+
+        <p class="body-sm text-text-secondary mt-6">
+          クレジットカード不要 ・ 14日間無料トライアル
+        </p>
+      </div>
     </div>
-  </main>
+
+    <!-- Decorative background -->
+    <div class="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
+      <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-accent-blue/5 blur-3xl" />
+    </div>
+  </section>
+
+  <!-- Features Section -->
+  <section class="border-t border-border-subtle bg-surface-soft">
+    <div class="mx-auto max-w-7xl px-4 py-20 lg:px-6">
+      <div class="text-center mb-16">
+        <h2 class="display-md text-text-primary mb-4">
+          すべてを、ひとつのプラットフォームで
+        </h2>
+        <p class="body-lg text-text-secondary max-w-2xl mx-auto">
+          複雑なツールを組み合わせる必要はありません。
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- Feature 1 -->
+        <Card padding="lg" class="hover:shadow-md transition-shadow">
+          <div class="w-10 h-10 rounded-sm bg-accent-blue/10 flex items-center justify-center mb-4">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent-blue">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+              <line x1="16" y1="2" x2="16" y2="6" />
+              <line x1="8" y1="2" x2="8" y2="6" />
+              <line x1="3" y1="10" x2="21" y2="10" />
+            </svg>
+          </div>
+          <h3 class="heading-sm text-text-primary mb-2">イベント作成</h3>
+          <p class="body-sm text-text-secondary">
+            テンプレートを使って数分でイベントページを作成。チケット販売、参加者管理も思いのまま。
+          </p>
+        </Card>
+
+        <!-- Feature 2 -->
+        <Card padding="lg" class="hover:shadow-md transition-shadow">
+          <div class="w-10 h-10 rounded-sm bg-accent-rose/10 flex items-center justify-center mb-4">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent-rose">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+              <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+            </svg>
+          </div>
+          <h3 class="heading-sm text-text-primary mb-2">参加者管理</h3>
+          <p class="body-sm text-text-secondary">
+            チェックイン、参加履歴、フィードバックを一元管理。QRコードでスムーズな入場処理。
+          </p>
+        </Card>
+
+        <!-- Feature 3 -->
+        <Card padding="lg" class="hover:shadow-md transition-shadow">
+          <div class="w-10 h-10 rounded-sm bg-accent-gold/10 flex items-center justify-center mb-4">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent-gold">
+              <line x1="18" y1="20" x2="18" y2="10" />
+              <line x1="12" y1="20" x2="12" y2="4" />
+              <line x1="6" y1="20" x2="6" y2="14" />
+            </svg>
+          </div>
+          <h3 class="heading-sm text-text-primary mb-2">分析ダッシュボード</h3>
+          <p class="body-sm text-text-secondary">
+            集客状況、売上、参加率などをリアルタイムで可視化。次のイベント改善にすぐ活かせます。
+          </p>
+        </Card>
+
+        <!-- Feature 4 -->
+        <Card padding="lg" class="hover:shadow-md transition-shadow">
+          <div class="w-10 h-10 rounded-sm bg-accent-blue/10 flex items-center justify-center mb-4">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent-blue">
+              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+              <polyline points="22,6 12,13 2,6" />
+            </svg>
+          </div>
+          <h3 class="heading-sm text-text-primary mb-2">メール・通知</h3>
+          <p class="body-sm text-text-secondary">
+            参加者への自動リマインダー、出演者への通知、当日の案内メールまで。きめ細かいコミュニケーションを。
+          </p>
+        </Card>
+
+        <!-- Feature 5 -->
+        <Card padding="lg" class="hover:shadow-md transition-shadow">
+          <div class="w-10 h-10 rounded-sm bg-accent-rose/10 flex items-center justify-center mb-4">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent-rose">
+              <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+              <line x1="8" y1="21" x2="16" y2="21" />
+              <line x1="12" y1="17" x2="12" y2="21" />
+            </svg>
+          </div>
+          <h3 class="heading-sm text-text-primary mb-2">オンライン対応</h3>
+          <p class="body-sm text-text-secondary">
+            ハイブリッドイベントもサポート。配信連携、リアルタイムQ&A、バーチャルネットワーキング。
+          </p>
+        </Card>
+
+        <!-- Feature 6 -->
+        <Card padding="lg" class="hover:shadow-md transition-shadow">
+          <div class="w-10 h-10 rounded-sm bg-accent-gold/10 flex items-center justify-center mb-4">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent-gold">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            </svg>
+          </div>
+          <h3 class="heading-sm text-text-primary mb-2">セキュリティ</h3>
+          <p class="body-sm text-text-secondary">
+            チケットの不正利用防止、個人情報保護、暗号化通信。安心のセキュリティ基盤。
+          </p>
+        </Card>
+      </div>
+    </div>
+  </section>
+
+  <!-- Component Showcase Section -->
+  <section class="border-t border-border-subtle">
+    <div class="mx-auto max-w-7xl px-4 py-20 lg:px-6">
+      <div class="text-center mb-16">
+        <h2 class="display-md text-text-primary mb-4">デザインシステム</h2>
+        <p class="body-lg text-text-secondary max-w-2xl mx-auto">
+          KASHIYAMA-inspiredなミニマルで洗練されたUIコンポーネント
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <!-- Buttons -->
+        <Card padding="lg">
+          <h3 class="heading-sm text-text-primary mb-4">ボタン</h3>
+          <div class="flex flex-wrap gap-3">
+            <Button variant="primary">Primary</Button>
+            <Button variant="secondary">Secondary</Button>
+            <Button variant="accent">Accent</Button>
+            <Button variant="primary" disabled>Disabled</Button>
+          </div>
+        </Card>
+
+        <!-- Badges -->
+        <Card padding="lg">
+          <h3 class="heading-sm text-text-primary mb-4">バッジ</h3>
+          <div class="flex flex-wrap gap-3 items-center">
+            <Badge variant="default">Default</Badge>
+            <Badge variant="success">参加完了</Badge>
+            <Badge variant="warning">受付中</Badge>
+            <Badge variant="danger">キャンセル</Badge>
+            <Badge variant="info">新規</Badge>
+          </div>
+        </Card>
+
+        <!-- Input -->
+        <Card padding="lg">
+          <h3 class="heading-sm text-text-primary mb-4">フォーム</h3>
+          <div class="flex flex-col gap-4 max-w-sm">
+            <Input label="イベント名" placeholder="イベント名を入力" />
+            <Input label="メールアドレス" type="email" placeholder="example@email.com" />
+            <Input label="エラー例" error="この項目は必須です" />
+          </div>
+        </Card>
+
+        <!-- Typography -->
+        <Card padding="lg">
+          <h3 class="heading-sm text-text-primary mb-4">タイポグラフィ</h3>
+          <div class="flex flex-col gap-3">
+            <p class="display-md text-text-primary">Display MD</p>
+            <p class="heading-lg text-text-primary">Heading Large</p>
+            <p class="heading-md text-text-primary">Heading Medium</p>
+            <p class="body-lg text-text-secondary">Body Large - テキスト</p>
+            <p class="body-sm text-text-secondary">Body Small - テキスト</p>
+            <p class="caption-mono text-text-secondary">CAPTION MONO</p>
+          </div>
+        </Card>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA Section -->
+  <section class="border-t border-border-subtle bg-surface-soft">
+    <div class="mx-auto max-w-7xl px-4 py-20 lg:px-6">
+      <div class="text-center max-w-2xl mx-auto">
+        <h2 class="display-md text-text-primary mb-4">
+          今すぐ始めましょう
+        </h2>
+        <p class="body-lg text-text-secondary mb-8">
+          無料でアカウントを作成して、あなたのイベントを次のレベルへ。
+        </p>
+        <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+          <Button variant="accent" size="lg">無料で始める</Button>
+          <Button variant="secondary" size="lg">お問い合わせ</Button>
+        </div>
+      </div>
+    </div>
+  </section>
 </Layout>

@@ -1,0 +1,26 @@
+---
+interface Props {
+  variant?: "default" | "success" | "warning" | "danger" | "info";
+  class?: string;
+}
+
+const { variant = "default", class: className = "" } = Astro.props;
+
+const variantClasses = {
+  default: "bg-surface-medium text-text-primary",
+  success: "bg-[color-mix(in_srgb,var(--color-success)_15%,transparent)] text-success",
+  warning: "bg-[color-mix(in_srgb,var(--color-warning)_15%,transparent)] text-warning",
+  danger: "bg-[color-mix(in_srgb,var(--color-danger)_15%,transparent)] text-danger",
+  info: "bg-[color-mix(in_srgb,var(--accent-blue)_15%,transparent)] text-accent-blue",
+};
+---
+
+<span
+  class:list={[
+    "inline-flex items-center px-2.5 py-0.5 text-xs font-medium rounded-sm",
+    variantClasses[variant],
+    className,
+  ]}
+>
+  <slot />
+</span>

@@ -1,0 +1,220 @@
+---
+import DashboardLayout from '../layout.astro';
+import Button from '../../../components/ui/Button.astro';
+import Card from '../../../components/ui/Card.astro';
+import Input from '../../../components/ui/Input.astro';
+
+const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787';
+const token = Astro.cookies.get('sb-token')?.value || '';
+
+// Fetch events for recipient selection
+let events: any[] = [];
+const headers = { 'Authorization': `Bearer ${token}` };
+
+try {
+  const res = await fetch(`${API_BASE}/api/events?limit=100`, { headers });
+  if (res.ok) {
+    const json = await res.json();
+    events = json.data || [];
+  }
+} catch (err) {
+  console.error('Failed to fetch events:', err);
+}
+---
+
+<DashboardLayout
+  title="メール作成"
+  breadcrumbs={[{ label: 'メール配信', href: '/dashboard/email' }, { label: '新規作成' }]}
+>
+  <div class="max-w-3xl">
+    <h1 class="heading-lg text-text-primary mb-6">メール作成</h1>
+
+    <form id="email-form" class="flex flex-col gap-6">
+      <!-- Send Type -->
+      <Card padding="md">
+        <h2 class="heading-sm text-text-primary mb-4">送信タイプ</h2>
+        <div class="flex gap-4">
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="radio" name="send_type" value="single" checked class="accent-accent-blue w-4 h-4" />
+            <span class="text-sm text-text-primary">個別送信</span>
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="radio" name="send_type" value="bulk" class="accent-accent-blue w-4 h-4" />
+            <span class="text-sm text-text-primary">一括送信</span>
+          </label>
+        </div>
+      </Card>
+
+      <!-- Recipient -->
+      <Card padding="md">
+        <h2 class="heading-sm text-text-primary mb-4">宛先</h2>
+        <div class="flex flex-col gap-4">
+          <!-- Single email -->
+          <div id="single-recipient">
+            <Input
+              label="宛先メールアドレス"
+              name="recipient"
+              type="email"
+              placeholder="example@email.com"
+              required
+            />
+          </div>
+
+          <!-- Bulk target -->
+          <div id="bulk-recipient" class="hidden">
+            <div class="flex flex-col gap-1.5">
+              <label for="target_event_id" class="text-sm font-medium text-text-primary">送信対象イベント</label>
+              <select
+                id="target_event_id"
+                name="target_event_id"
+                class="w-full px-3 py-2.5 text-base text-text-primary bg-surface-base border border-border-default rounded-sm min-h-[44px] focus:outline-2 focus:outline-accent-blue focus:border-accent-blue"
+              >
+                <option value="">イベントを選択...</option>
+                {events.map((event) => (
+                  <option value={event.id}>{event.title}</option>
+                ))}
+              </select>
+              <p class="text-xs text-text-secondary mt-1">選択したイベントの参加者全員に送信します</p>
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      <!-- Content -->
+      <Card padding="md">
+        <h2 class="heading-sm text-text-primary mb-4">メール内容</h2>
+        <div class="flex flex-col gap-4">
+          <Input
+            label="件名"
+            name="subject"
+            type="text"
+            placeholder="メールの件名を入力..."
+            required
+          />
+          <div class="flex flex-col gap-1.5">
+            <label for="body" class="text-sm font-medium text-text-primary">本文</label>
+            <textarea
+              id="body"
+              name="body"
+              rows="12"
+              placeholder="メール本文を入力..."
+              required
+              class="w-full px-3 py-2.5 text-base text-text-primary bg-surface-base border border-border-default rounded-sm placeholder:text-text-secondary transition-colors duration-200 focus:outline-2 focus:outline-accent-blue focus:outline-offset-0 focus:border-accent-blue resize-y"
+            />
+            <p class="text-xs text-text-secondary">
+              使用可能なテンプレート変数: <code class="px-1 py-0.5 bg-surface-soft rounded text-xs">{'{{name}}'}</code> {' '}
+              <code class="px-1 py-0.5 bg-surface-soft rounded text-xs">{{'{{event_name}}'}}</code>{' '}
+              <code class="px-1 py-0.5 bg-surface-soft rounded text-xs">{{'{{date}}'}}</code>
+            </p>
+          </div>
+        </div>
+      </Card>
+
+      <!-- Actions -->
+      <div class="flex items-center gap-3">
+        <Button type="submit" variant="accent" id="send-btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="22" y1="2" x2="11" y2="13" />
+            <polygon points="22 2 15 22 11 13 2 9 22 2" />
+          </svg>
+          送信する
+        </Button>
+        <Button variant="secondary" href="/dashboard/email">
+          キャンセル
+        </Button>
+      </div>
+
+      <!-- Status Message -->
+      <div id="status-message" class="hidden"></div>
+    </form>
+  </div>
+</DashboardLayout>
+
+<script>
+  // Toggle send type
+  const radios = document.querySelectorAll<HTMLInputElement>('input[name="send_type"]');
+  const singleRecipient = document.getElementById('single-recipient')!;
+  const bulkRecipient = document.getElementById('bulk-recipient')!;
+
+  radios.forEach((radio) => {
+    radio.addEventListener('change', () => {
+      const isBulk = radio.value === 'bulk' && radio.checked;
+      singleRecipient.classList.toggle('hidden', isBulk);
+      bulkRecipient.classList.toggle('hidden', !isBulk);
+
+      // Toggle required
+      const singleInput = singleRecipient.querySelector('input');
+      const bulkSelect = bulkRecipient.querySelector('select');
+      if (singleInput) singleInput.required = !isBulk;
+      if (bulkSelect) bulkSelect.required = isBulk;
+    });
+  });
+
+  // Form submission
+  const form = document.getElementById('email-form') as HTMLFormElement;
+  const sendBtn = document.getElementById('send-btn')!;
+  const statusMessage = document.getElementById('status-message')!;
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const formData = new FormData(form);
+    const sendType = formData.get('send_type') as string;
+    const isBulk = sendType === 'bulk';
+
+    const body: Record<string, any> = {
+      subject: formData.get('subject'),
+      body: formData.get('body'),
+    };
+
+    if (isBulk) {
+      body.target_event_id = formData.get('target_event_id');
+    } else {
+      body.recipient = formData.get('recipient');
+    }
+
+    const endpoint = isBulk ? '/api/email/bulk' : '/api/email/send';
+
+    sendBtn.setAttribute('disabled', 'true');
+    sendBtn.textContent = '送信中...';
+    statusMessage.classList.add('hidden');
+
+    try {
+      const token = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('sb-token='))
+        ?.split('=')[1];
+
+      const res = await fetch(`${import.meta.env.PUBLIC_API_URL || 'http://localhost:8787'}${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      });
+
+      const json = await res.json();
+
+      if (res.ok) {
+        statusMessage.className = 'p-4 rounded-md border text-sm bg-[color-mix(in_srgb,var(--color-success)_10%,transparent)] border-[color-mix(in_srgb,var(--color-success)_30%,transparent)] text-success';
+        statusMessage.textContent = isBulk
+          ? `一括送信を受け付けました（${json.data?.queued ?? 0} 件）`
+          : 'メールを送信しました';
+        statusMessage.classList.remove('hidden');
+        if (!isBulk) form.reset();
+      } else {
+        statusMessage.className = 'p-4 rounded-md border text-sm bg-danger/10 border-danger/30 text-danger';
+        statusMessage.textContent = json.error || '送信に失敗しました';
+        statusMessage.classList.remove('hidden');
+      }
+    } catch {
+      statusMessage.className = 'p-4 rounded-md border text-sm bg-danger/10 border-danger/30 text-danger';
+      statusMessage.textContent = 'ネットワークエラーが発生しました';
+      statusMessage.classList.remove('hidden');
+    } finally {
+      sendBtn.removeAttribute('disabled');
+      sendBtn.textContent = '送信する';
+    }
+  });
+</script>

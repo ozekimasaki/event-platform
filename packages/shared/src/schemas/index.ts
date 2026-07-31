@@ -11,3 +11,4 @@ export * from './article.js';
 export * from './sessions.js';
 export * from './community.js';
 export * from './api-key.js';
+export * from './survey.js';

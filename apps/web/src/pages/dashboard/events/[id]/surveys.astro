@@ -1,0 +1,477 @@
+---
+import DashboardLayout from '../../../dashboard/layout.astro';
+import Badge from '../../../../../components/ui/Badge.astro';
+import Button from '../../../../../components/ui/Button.astro';
+import type { Event, Survey, SurveyStats } from '@event-platform/shared';
+
+const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787';
+const { id } = Astro.params;
+
+let event: Event | null = null;
+let surveysList: Survey[] = [];
+let surveyStatsMap: Record<string, SurveyStats> = {};
+let notFound = false;
+
+// Fetch event
+try {
+  const token = Astro.cookies.get('sb-access-token')?.value;
+  if (!token) {
+    return Astro.redirect('/login');
+  }
+
+  const eventRes = await fetch(`${API_BASE}/api/events/by-id/${id}`, {
+    headers: { 'Authorization': `Bearer ${token}` },
+  });
+
+  if (!eventRes.ok) {
+    notFound = true;
+  } else {
+    const eventJson = await eventRes.json();
+    event = eventJson.data;
+
+    if (event) {
+      // Fetch surveys
+      const surveyRes = await fetch(`${API_BASE}/api/events/${event.id}/surveys`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+
+      if (surveyRes.ok) {
+        const surveyJson = await surveyRes.json();
+        surveysList = surveyJson.data ?? [];
+
+        // Fetch stats for each survey
+        for (const survey of surveysList) {
+          try {
+            const statsRes = await fetch(`${API_BASE}/api/surveys/${survey.id}/stats`, {
+              headers: { 'Authorization': `Bearer ${token}` },
+            });
+            if (statsRes.ok) {
+              const statsJson = await statsRes.json();
+              surveyStatsMap[survey.id] = statsJson.data;
+            }
+          } catch {
+            // Ignore stats fetch errors
+          }
+        }
+      }
+    }
+  }
+} catch (err) {
+  console.error('Failed to fetch data:', err);
+  notFound = true;
+}
+
+const formatDate = (dateStr: string): string => {
+  const date = new Date(dateStr);
+  return date.toLocaleDateString('ja-JP', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+};
+
+const questionTypeLabel: Record<string, string> = {
+  text: 'テキスト',
+  choice: '選択式',
+  rating: '評価',
+  multi: '複数選択',
+};
+---
+
+{!notFound && event ? (
+  <DashboardLayout
+    title={`アンケート管理 - ${event.title}`}
+    breadcrumbs={[
+      { label: 'イベント管理', href: '/dashboard/events' },
+      { label: event.title, href: `/dashboard/events/${event.id}/edit` },
+      { label: 'アンケート管理' },
+    ]}
+  >
+    <div class="flex flex-col gap-6">
+      <!-- Header -->
+      <div class="flex items-center justify-between">
+        <div>
+          <h1 class="heading-lg text-text-primary">アンケート管理</h1>
+          <p class="body-sm text-text-secondary mt-1">{event.title}</p>
+        </div>
+        <Button variant="accent" size="sm" id="create-survey-btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="mr-1.5">
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+          新規アンケート
+        </Button>
+      </div>
+
+      <!-- Survey List -->
+      {surveysList.length === 0 ? (
+        <div class="p-8 border border-border-default rounded-md text-center">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="mx-auto text-text-secondary mb-4">
+            <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
+            <rect x="9" y="3" width="6" height="4" rx="1" />
+          </svg>
+          <p class="text-text-primary font-medium mb-1">アンケートがまだありません</p>
+          <p class="text-text-secondary body-sm">「新規アンケート」ボタンから作成できます。</p>
+        </div>
+      ) : (
+        <div class="flex flex-col gap-4">
+          {surveysList.map((survey) => {
+            const stats = surveyStatsMap[survey.id];
+            return (
+              <div class="border border-border-default rounded-md overflow-hidden">
+                <!-- Survey Header -->
+                <div class="p-4 bg-surface-medium border-b border-border-default">
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                      <h3 class="heading-sm text-text-primary">{survey.title}</h3>
+                      <Badge variant={survey.is_active ? 'success' : 'default'}>
+                        {survey.is_active ? 'Active' : 'Inactive'}
+                      </Badge>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <button
+                        class="toggle-survey-btn px-3 py-1.5 text-xs rounded-sm border border-border-default hover:bg-surface-base transition-colors text-text-secondary"
+                        data-survey-id={survey.id}
+                        data-active={survey.is_active}
+                      >
+                        {survey.is_active ? '非アクティブ化' : 'アクティブ化'}
+                      </button>
+                      <button
+                        class="delete-survey-btn px-3 py-1.5 text-xs rounded-sm border border-danger/30 text-danger hover:bg-danger/10 transition-colors"
+                        data-survey-id={survey.id}
+                      >
+                        削除
+                      </button>
+                    </div>
+                  </div>
+                  {survey.description && (
+                    <p class="body-sm text-text-secondary mt-2">{survey.description}</p>
+                  )}
+                  <div class="flex items-center gap-4 mt-2 text-xs text-text-secondary">
+                    <span>作成日: {formatDate(survey.created_at)}</span>
+                    <span>質問数: {survey.questions?.length ?? 0}</span>
+                    {stats && <span>回答数: {stats.total_responses}</span>}
+                  </div>
+                </div>
+
+                <!-- Questions Preview -->
+                <div class="p-4">
+                  <h4 class="text-sm font-medium text-text-secondary mb-3">質問一覧</h4>
+                  <div class="flex flex-col gap-2">
+                    {(survey.questions ?? []).map((q, i) => (
+                      <div class="flex items-center gap-3 text-sm">
+                        <span class="text-text-secondary w-6 shrink-0">{i + 1}.</span>
+                        <Badge variant="info" class="shrink-0">{questionTypeLabel[q.type] ?? q.type}</Badge>
+                        <span class="text-text-primary truncate">{q.question}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <!-- Stats Section -->
+                {stats && stats.total_responses > 0 && (
+                  <div class="p-4 border-t border-border-default bg-surface-elevated">
+                    <h4 class="text-sm font-medium text-text-secondary mb-3">集計結果（{stats.total_responses}回答）</h4>
+                    <div class="flex flex-col gap-4">
+                      {stats.question_stats.map((qs) => (
+                        <div>
+                          <p class="text-sm text-text-primary font-medium mb-2">{qs.question}</p>
+                          {qs.type === 'rating' && qs.average !== undefined && (
+                            <div class="flex items-center gap-2">
+                              <span class="text-lg font-bold text-yellow-500">★ {qs.average}</span>
+                              <span class="text-xs text-text-secondary">/ 5.0</span>
+                            </div>
+                          )}
+                          {(qs.type === 'choice' || qs.type === 'multi' || qs.type === 'rating') && qs.distribution && (
+                            <div class="flex flex-col gap-1.5 mt-2">
+                              {Object.entries(qs.distribution).map(([key, count]) => {
+                                const pct = qs.total_answers > 0 ? Math.round((count / qs.total_answers) * 100) : 0;
+                                return (
+                                  <div class="flex items-center gap-2">
+                                    <span class="text-xs text-text-secondary w-24 truncate">{key}</span>
+                                    <div class="flex-1 h-4 bg-surface-medium rounded-full overflow-hidden">
+                                      <div class="h-full bg-accent-blue/60 rounded-full" style={`width: ${pct}%`}></div>
+                                    </div>
+                                    <span class="text-xs text-text-secondary w-16 text-right">{count} ({pct}%)</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                          {qs.type === 'text' && (
+                            <p class="text-xs text-text-secondary">{qs.total_answers}件の回答あり</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+
+    <!-- Create Survey Modal -->
+    <div id="create-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div class="bg-surface-elevated border border-border-default rounded-md w-full max-w-2xl max-h-[90vh] overflow-y-auto m-4 p-6">
+        <h2 class="heading-md text-text-primary mb-4">新規アンケート作成</h2>
+        <form id="create-survey-form" class="flex flex-col gap-4">
+          <div>
+            <label class="block text-sm font-medium text-text-secondary mb-1">タイトル <span class="text-danger">*</span></label>
+            <input
+              type="text"
+              name="title"
+              required
+              class="w-full px-3 py-2 border border-border-default rounded-sm bg-surface-base text-text-primary body-sm focus:outline-none focus:ring-2 focus:ring-accent-blue/50"
+              placeholder="例: イベント満足度アンケート"
+            />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-text-secondary mb-1">説明</label>
+            <textarea
+              name="description"
+              rows={2}
+              class="w-full px-3 py-2 border border-border-default rounded-sm bg-surface-base text-text-primary body-sm focus:outline-none focus:ring-2 focus:ring-accent-blue/50 resize-none"
+              placeholder="アンケートの目的や説明を入力..."
+            />
+          </div>
+
+          <!-- Questions Builder -->
+          <div>
+            <label class="block text-sm font-medium text-text-secondary mb-2">質問 <span class="text-danger">*</span></label>
+            <div id="questions-container" class="flex flex-col gap-3">
+              <!-- Questions will be added here dynamically -->
+            </div>
+            <button
+              type="button"
+              id="add-question-btn"
+              class="mt-2 px-3 py-2 text-sm border border-border-default rounded-sm text-text-secondary hover:bg-surface-medium transition-colors w-full"
+            >
+              + 質問を追加
+            </button>
+          </div>
+
+          <div class="flex items-center gap-3 pt-2">
+            <Button variant="accent" size="sm" id="save-survey-btn">作成する</Button>
+            <button type="button" id="cancel-create-btn" class="px-3 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors">
+              キャンセル
+            </button>
+          </div>
+
+          <div id="create-status" class="hidden">
+            <div id="create-error" class="hidden p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-sm">
+              <p id="create-error-msg" class="text-red-700 dark:text-red-300 text-sm"></p>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script define:vars={{ eventId: id, apiBase: API_BASE }}>
+      (function() {
+        const token = localStorage.getItem('sb-access-token');
+        const modal = document.getElementById('create-modal');
+        const createBtn = document.getElementById('create-survey-btn');
+        const cancelBtn = document.getElementById('cancel-create-btn');
+        const addQuestionBtn = document.getElementById('add-question-btn');
+        const questionsContainer = document.getElementById('questions-container');
+        const form = document.getElementById('create-survey-form');
+        let questionCount = 0;
+
+        // Open modal
+        createBtn.addEventListener('click', () => {
+          modal.classList.remove('hidden');
+        });
+
+        // Close modal
+        cancelBtn.addEventListener('click', () => {
+          modal.classList.add('hidden');
+        });
+
+        // Add question
+        addQuestionBtn.addEventListener('click', () => {
+          questionCount++;
+          const qId = `q_${Date.now()}_${questionCount}`;
+          const div = document.createElement('div');
+          div.className = 'p-3 border border-border-default rounded-sm bg-surface-base';
+          div.dataset.questionId = qId;
+          div.innerHTML = `
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs text-text-secondary font-medium">質問 ${questionCount}</span>
+              <button type="button" class="remove-q-btn text-xs text-danger hover:underline">削除</button>
+            </div>
+            <div class="flex flex-col gap-2">
+              <input type="text" name="q_question_${qId}" placeholder="質問文を入力..." required
+                class="w-full px-2 py-1.5 border border-border-default rounded-sm bg-surface-elevated text-text-primary text-sm focus:outline-none focus:ring-1 focus:ring-accent-blue/50" />
+              <div class="flex items-center gap-3">
+                <select name="q_type_${qId}" class="q-type-select px-2 py-1.5 border border-border-default rounded-sm bg-surface-elevated text-text-primary text-sm">
+                  <option value="text">テキスト</option>
+                  <option value="choice">選択式</option>
+                  <option value="rating">評価（1-5）</option>
+                  <option value="multi">複数選択</option>
+                </select>
+                <label class="flex items-center gap-1.5 text-xs text-text-secondary">
+                  <input type="checkbox" name="q_required_${qId}" class="accent-accent-blue" />
+                  必須
+                </label>
+              </div>
+              <div class="q-options-section hidden">
+                <input type="text" name="q_options_${qId}" placeholder="選択肢をカンマ区切りで入力（例: 満足,普通,不満）"
+                  class="w-full px-2 py-1.5 border border-border-default rounded-sm bg-surface-elevated text-text-primary text-sm focus:outline-none focus:ring-1 focus:ring-accent-blue/50" />
+              </div>
+            </div>
+          `;
+          questionsContainer.appendChild(div);
+
+          // Remove question
+          div.querySelector('.remove-q-btn').addEventListener('click', () => {
+            div.remove();
+          });
+
+          // Show/hide options based on type
+          const typeSelect = div.querySelector('.q-type-select');
+          const optionsSection = div.querySelector('.q-options-section');
+          typeSelect.addEventListener('change', () => {
+            const show = ['choice', 'multi'].includes(typeSelect.value);
+            optionsSection.classList.toggle('hidden', !show);
+          });
+        });
+
+        // Submit create form
+        form.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          if (!token) {
+            alert('ログインが必要です');
+            return;
+          }
+
+          const statusDiv = document.getElementById('create-status');
+          const errorDiv = document.getElementById('create-error');
+          const errorMsg = document.getElementById('create-error-msg');
+          const saveBtn = document.getElementById('save-survey-btn');
+
+          statusDiv.classList.remove('hidden');
+          errorDiv.classList.add('hidden');
+
+          const formData = new FormData(form);
+          const title = formData.get('title');
+          const description = formData.get('description') || undefined;
+
+          // Collect questions
+          const questionEls = questionsContainer.querySelectorAll('[data-question-id]');
+          if (questionEls.length === 0) {
+            errorDiv.classList.remove('hidden');
+            errorMsg.textContent = '少なくとも1つの質問を追加してください。';
+            return;
+          }
+
+          const questions = [];
+          for (const el of questionEls) {
+            const qId = el.dataset.questionId;
+            const question = formData.get(`q_question_${qId}`);
+            const type = formData.get(`q_type_${qId}`);
+            const required = formData.has(`q_required_${qId}`);
+            const optionsRaw = formData.get(`q_options_${qId}`);
+
+            if (!question) continue;
+
+            const q = {
+              id: qId,
+              type: type,
+              question: question,
+              required: required,
+            };
+
+            if (['choice', 'multi'].includes(type) && optionsRaw) {
+              q.options = optionsRaw.split(',').map(s => s.trim()).filter(Boolean);
+            }
+
+            questions.push(q);
+          }
+
+          if (questions.length === 0) {
+            errorDiv.classList.remove('hidden');
+            errorMsg.textContent = '質問内容を入力してください。';
+            return;
+          }
+
+          saveBtn.disabled = true;
+          saveBtn.textContent = '作成中...';
+
+          try {
+            const res = await fetch(`${apiBase}/api/events/${eventId}/surveys`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+              },
+              body: JSON.stringify({ title, description, questions }),
+            });
+
+            const json = await res.json();
+            if (!res.ok) throw new Error(json.error?.message || '作成に失敗しました');
+
+            window.location.reload();
+          } catch (err) {
+            errorDiv.classList.remove('hidden');
+            errorMsg.textContent = err.message;
+          } finally {
+            saveBtn.disabled = false;
+            saveBtn.textContent = '作成する';
+          }
+        });
+
+        // Toggle survey active state
+        document.querySelectorAll('.toggle-survey-btn').forEach((btn) => {
+          btn.addEventListener('click', async () => {
+            if (!token) return;
+            const surveyId = btn.dataset.surveyId;
+            const isActive = btn.dataset.active === 'true';
+
+            try {
+              const res = await fetch(`${apiBase}/api/surveys/${surveyId}`, {
+                method: 'PATCH',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({ is_active: !isActive }),
+              });
+              if (res.ok) window.location.reload();
+            } catch (err) {
+              console.error('Toggle failed:', err);
+            }
+          });
+        });
+
+        // Delete survey
+        document.querySelectorAll('.delete-survey-btn').forEach((btn) => {
+          btn.addEventListener('click', async () => {
+            if (!token) return;
+            if (!confirm('このアンケートを削除しますか？回答データも全て削除されます。')) return;
+            const surveyId = btn.dataset.surveyId;
+
+            try {
+              const res = await fetch(`${apiBase}/api/surveys/${surveyId}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` },
+              });
+              if (res.ok) window.location.reload();
+            } catch (err) {
+              console.error('Delete failed:', err);
+            }
+          });
+        });
+      })();
+    </script>
+  </DashboardLayout>
+) : (
+  <DashboardLayout title="イベントが見つかりません">
+    <div class="text-center py-12">
+      <p class="text-text-secondary body-lg">イベントが見つかりませんでした</p>
+      <Button variant="accent" href="/dashboard/events" class="mt-4">イベント一覧に戻る</Button>
+    </div>
+  </DashboardLayout>
+)}

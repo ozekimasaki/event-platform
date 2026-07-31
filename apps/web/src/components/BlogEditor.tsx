@@ -7,167 +7,342 @@ import { useCallback, useEffect } from 'react';
 interface BlogEditorProps {
   content: string;
   onChange: (html: string) => void;
-  placeholder?: string;
 }
 
-export default function BlogEditor({ content, onChange, placeholder = '記事の内容を入力してください...' }: BlogEditorProps) {
+interface ToolbarButtonProps {
+  onClick: () => void;
+  isActive?: boolean;
+  title: string;
+  children: React.ReactNode;
+}
+
+function ToolbarButton({ onClick, isActive, title, children }: ToolbarButtonProps) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '36px',
+        height: '36px',
+        border: '1px solid var(--border-default)',
+        borderRadius: '4px',
+        backgroundColor: isActive ? 'var(--surface-medium)' : 'var(--surface-elevated)',
+        color: isActive ? 'var(--accent-blue)' : 'var(--text-primary)',
+        cursor: 'pointer',
+        fontSize: '13px',
+        fontWeight: 500,
+        transition: 'background-color 150ms, color 150ms',
+      }}
+      onMouseEnter={(e) => {
+        if (!isActive) (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--surface-soft)';
+      }}
+      onMouseLeave={(e) => {
+        if (!isActive) (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--surface-elevated)';
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function ToolbarDivider() {
+  return (
+    <div style={{ width: '1px', height: '24px', backgroundColor: 'var(--border-default)', margin: '0 4px' }} />
+  );
+}
+
+export default function BlogEditor({ content, onChange }: BlogEditorProps) {
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
         heading: { levels: [2, 3, 4] },
       }),
       Image.configure({
-        inline: true,
+        inline: false,
         allowBase64: true,
+        HTMLAttributes: { class: 'blog-editor-image' },
       }),
       Link.configure({
         openOnClick: false,
-        HTMLAttributes: {
-          class: 'text-accent-blue underline hover:opacity-80',
-          target: '_blank',
-          rel: 'noopener noreferrer',
-        },
+        HTMLAttributes: { class: 'blog-editor-link', rel: 'noopener noreferrer', target: '_blank' },
       }),
     ],
-    content,
-    onUpdate: ({ editor }) => {
-      onChange(editor.getHTML());
+    content: content || '',
+    onUpdate: ({ editor: e }) => {
+      onChange(e.getHTML());
     },
     editorProps: {
       attributes: {
-        class: 'prose prose-neutral max-w-none focus:outline-none min-h-[300px] px-4 py-3 text-text-primary',
-        'data-placeholder': placeholder,
+        class: 'blog-editor-content',
+        'data-placeholder': '記事の内容を入力してください...',
       },
     },
   });
 
   useEffect(() => {
     if (editor && content !== editor.getHTML()) {
-      editor.commands.setContent(content);
+      editor.commands.setContent(content || '');
     }
-  }, [content, editor]);
+  }, [content]);
 
-  const setLink = useCallback(() => {
-    if (!editor) return;
-    const url = window.prompt('URLを入力:');
+  const addImage = useCallback(() => {
+    const url = window.prompt('画像のURLを入力してください:');
+    if (url && editor) {
+      editor.chain().focus().setImage({ src: url }).run();
+    }
+  }, [editor]);
+
+  const addLink = useCallback(() => {
+    const prevUrl = editor?.getAttributes('link').href || '';
+    const url = window.prompt('リンクURLを入力してください:', prevUrl);
     if (url === null) return;
-    if (url === '') {
+    if (url === '' && editor) {
       editor.chain().focus().extendMarkRange('link').unsetLink().run();
       return;
     }
-    editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
-  }, [editor]);
-
-  const addImage = useCallback(() => {
-    if (!editor) return;
-    const url = window.prompt('画像URLを入力:');
-    if (url) {
-      editor.chain().focus().setImage({ src: url }).run();
+    if (editor) {
+      editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
     }
   }, [editor]);
 
   if (!editor) return null;
 
-  const btnClass = (active: boolean) =>
-    `inline-flex items-center justify-center min-w-[36px] min-h-[36px] px-2 border rounded-sm text-sm transition-colors ${
-      active
-        ? 'bg-accent-blue text-text-on-accent border-accent-blue'
-        : 'bg-surface-base text-text-primary border-border-default hover:bg-surface-medium'
-    }`;
-
   return (
-    <div className="border border-border-default rounded-sm overflow-hidden bg-surface-base">
+    <div
+      style={{
+        border: '1px solid var(--border-default)',
+        borderRadius: 'var(--radius-sm)',
+        overflow: 'hidden',
+        backgroundColor: 'var(--surface-base)',
+      }}
+    >
       {/* Toolbar */}
-      <div className="flex items-center gap-1 p-2 border-b border-border-default bg-surface-soft flex-wrap">
-        <button type="button" onClick={() => editor.chain().focus().toggleBold().run()} className={btnClass(editor.isActive('bold'))} title="太字">
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '4px',
+          padding: '8px',
+          borderBottom: '1px solid var(--border-default)',
+          backgroundColor: 'var(--surface-soft)',
+          flexWrap: 'wrap',
+        }}
+      >
+        {/* Text formatting */}
+        <ToolbarButton
+          onClick={() => editor.chain().focus().toggleBold().run()}
+          isActive={editor.isActive('bold')}
+          title="太字"
+        >
           <strong>B</strong>
-        </button>
-        <button type="button" onClick={() => editor.chain().focus().toggleItalic().run()} className={btnClass(editor.isActive('italic'))} title="斜体">
+        </ToolbarButton>
+        <ToolbarButton
+          onClick={() => editor.chain().focus().toggleItalic().run()}
+          isActive={editor.isActive('italic')}
+          title="斜体"
+        >
           <em>I</em>
-        </button>
-        <button type="button" onClick={() => editor.chain().focus().toggleStrike().run()} className={btnClass(editor.isActive('strike'))} title="取り消し線">
+        </ToolbarButton>
+        <ToolbarButton
+          onClick={() => editor.chain().focus().toggleStrike().run()}
+          isActive={editor.isActive('strike')}
+          title="取り消し線"
+        >
           <s>S</s>
-        </button>
+        </ToolbarButton>
 
-        <span className="w-px h-6 bg-border-default mx-1" />
+        <ToolbarDivider />
 
-        <button type="button" onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} className={btnClass(editor.isActive('heading', { level: 2 }))} title="見出し2">
+        {/* Headings */}
+        <ToolbarButton
+          onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+          isActive={editor.isActive('heading', { level: 2 })}
+          title="見出し2"
+        >
           H2
-        </button>
-        <button type="button" onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} className={btnClass(editor.isActive('heading', { level: 3 }))} title="見出し3">
+        </ToolbarButton>
+        <ToolbarButton
+          onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+          isActive={editor.isActive('heading', { level: 3 })}
+          title="見出し3"
+        >
           H3
-        </button>
-        <button type="button" onClick={() => editor.chain().focus().toggleHeading({ level: 4 }).run()} className={btnClass(editor.isActive('heading', { level: 4 }))} title="見出し4">
+        </ToolbarButton>
+        <ToolbarButton
+          onClick={() => editor.chain().focus().toggleHeading({ level: 4 }).run()}
+          isActive={editor.isActive('heading', { level: 4 })}
+          title="見出し4"
+        >
           H4
-        </button>
+        </ToolbarButton>
 
-        <span className="w-px h-6 bg-border-default mx-1" />
+        <ToolbarDivider />
 
-        <button type="button" onClick={() => editor.chain().focus().toggleBulletList().run()} className={btnClass(editor.isActive('bulletList'))} title="箇条書き">
+        {/* Lists */}
+        <ToolbarButton
+          onClick={() => editor.chain().focus().toggleBulletList().run()}
+          isActive={editor.isActive('bulletList')}
+          title="箇条書き"
+        >
           •
-        </button>
-        <button type="button" onClick={() => editor.chain().focus().toggleOrderedList().run()} className={btnClass(editor.isActive('orderedList'))} title="番号リスト">
+        </ToolbarButton>
+        <ToolbarButton
+          onClick={() => editor.chain().focus().toggleOrderedList().run()}
+          isActive={editor.isActive('orderedList')}
+          title="番号付きリスト"
+        >
           1.
-        </button>
-        <button type="button" onClick={() => editor.chain().focus().toggleBlockquote().run()} className={btnClass(editor.isActive('blockquote'))} title="引用">
-          &ldquo;
-        </button>
-        <button type="button" onClick={() => editor.chain().focus().toggleCodeBlock().run()} className={btnClass(editor.isActive('codeBlock'))} title="コードブロック">
+        </ToolbarButton>
+
+        <ToolbarDivider />
+
+        {/* Block elements */}
+        <ToolbarButton
+          onClick={() => editor.chain().focus().toggleBlockquote().run()}
+          isActive={editor.isActive('blockquote')}
+          title="引用"
+        >
+          "
+        </ToolbarButton>
+        <ToolbarButton
+          onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+          isActive={editor.isActive('codeBlock')}
+          title="コードブロック"
+        >
           {'<>'}
-        </button>
+        </ToolbarButton>
 
-        <span className="w-px h-6 bg-border-default mx-1" />
+        <ToolbarDivider />
 
-        <button type="button" onClick={setLink} className={btnClass(editor.isActive('link'))} title="リンク">
+        {/* Insert */}
+        <ToolbarButton onClick={addLink} isActive={editor.isActive('link')} title="リンク挿入">
           🔗
-        </button>
-        <button type="button" onClick={addImage} className={btnClass(false)} title="画像">
+        </ToolbarButton>
+        <ToolbarButton onClick={addImage} title="画像挿入">
           🖼
-        </button>
+        </ToolbarButton>
 
-        <div className="flex-1" />
+        <ToolbarDivider />
 
-        <button type="button" onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()} className={btnClass(false)} title="元に戻す">
-          ↩
-        </button>
-        <button type="button" onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()} className={btnClass(false)} title="やり直し">
-          ↪
-        </button>
+        {/* Undo/Redo */}
+        <ToolbarButton
+          onClick={() => editor.chain().focus().undo().run()}
+          title="元に戻す"
+        >
+          ←
+        </ToolbarButton>
+        <ToolbarButton
+          onClick={() => editor.chain().focus().redo().run()}
+          title="やり直す"
+        >
+          →
+        </ToolbarButton>
       </div>
 
       {/* Editor Content */}
-      <EditorContent editor={editor} />
+      <EditorContent
+        editor={editor}
+        style={{
+          minHeight: '300px',
+          padding: '16px',
+          color: 'var(--text-primary)',
+          backgroundColor: 'var(--surface-elevated)',
+        }}
+      />
 
-      {/* TipTap placeholder styles */}
       <style>{`
-        .tiptap p.is-editor-empty:first-child::before {
+        .blog-editor-content {
+          outline: none !important;
+          font-size: 1rem;
+          line-height: 1.7;
+          min-height: 280px;
+        }
+        .blog-editor-content p.is-editor-empty:first-child::before {
           content: attr(data-placeholder);
           float: left;
           color: var(--text-secondary);
           pointer-events: none;
           height: 0;
+          font-style: italic;
         }
-        .tiptap img {
-          max-width: 100%;
-          height: auto;
-          border-radius: 4px;
-          margin: 1rem 0;
+        .blog-editor-content h2 {
+          font-size: 1.5rem;
+          font-weight: 600;
+          margin: 1.5rem 0 0.75rem;
+          color: var(--text-primary);
         }
-        .tiptap blockquote {
-          border-left: 3px solid var(--border-default);
+        .blog-editor-content h3 {
+          font-size: 1.25rem;
+          font-weight: 600;
+          margin: 1.25rem 0 0.5rem;
+          color: var(--text-primary);
+        }
+        .blog-editor-content h4 {
+          font-size: 1.1rem;
+          font-weight: 600;
+          margin: 1rem 0 0.5rem;
+          color: var(--text-primary);
+        }
+        .blog-editor-content p {
+          margin: 0.5rem 0;
+        }
+        .blog-editor-content ul,
+        .blog-editor-content ol {
+          padding-left: 1.5rem;
+          margin: 0.5rem 0;
+        }
+        .blog-editor-content li {
+          margin: 0.25rem 0;
+        }
+        .blog-editor-content blockquote {
+          border-left: 3px solid var(--accent-blue);
           padding-left: 1rem;
           margin: 1rem 0;
           color: var(--text-secondary);
+          font-style: italic;
         }
-        .tiptap pre {
+        .blog-editor-content pre {
           background: var(--surface-medium);
-          border-radius: 4px;
-          padding: 0.75rem 1rem;
-          margin: 1rem 0;
+          border: 1px solid var(--border-default);
+          border-radius: 6px;
+          padding: 1rem;
           overflow-x: auto;
+          margin: 1rem 0;
+          font-family: var(--font-mono);
+          font-size: 0.875rem;
         }
-        .tiptap code {
+        .blog-editor-content code {
+          font-family: var(--font-mono);
           font-size: 0.875em;
+          background: var(--surface-medium);
+          padding: 0.15em 0.4em;
+          border-radius: 3px;
+        }
+        .blog-editor-content pre code {
+          background: none;
+          padding: 0;
+        }
+        .blog-editor-content a,
+        .blog-editor-link {
+          color: var(--accent-blue);
+          text-decoration: underline;
+          cursor: pointer;
+        }
+        .blog-editor-content img,
+        .blog-editor-image {
+          max-width: 100%;
+          height: auto;
+          border-radius: 6px;
+          margin: 1rem 0;
+        }
+        .blog-editor-content hr {
+          border: none;
+          border-top: 1px solid var(--border-default);
+          margin: 1.5rem 0;
         }
       `}</style>
     </div>

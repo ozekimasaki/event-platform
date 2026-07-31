@@ -1,0 +1,267 @@
+---
+import DashboardLayout from '../../layout.astro';
+import Button from '../../../components/ui/Button.astro';
+import Card from '../../../components/ui/Card.astro';
+import BlogEditor from '../../../components/BlogEditor';
+
+const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787';
+---
+
+<DashboardLayout
+  title="新規記事作成"
+  breadcrumbs={[{ label: '記事管理', href: '/dashboard/articles' }, { label: '新規作成' }]}
+>
+  <div class="max-w-4xl">
+    <h1 class="heading-lg text-text-primary mb-6">新規記事作成</h1>
+
+    <form id="article-form" class="flex flex-col gap-6">
+      <!-- Title -->
+      <Card padding="md">
+        <div class="flex flex-col gap-4">
+          <div>
+            <label for="title" class="block text-sm font-medium text-text-primary mb-1.5">
+              タイトル <span class="text-danger">*</span>
+            </label>
+            <input
+              type="text"
+              id="title"
+              name="title"
+              required
+              maxlength="300"
+              placeholder="記事のタイトルを入力..."
+              class="w-full px-3 py-2.5 text-base text-text-primary bg-surface-base border border-border-default rounded-sm min-h-[44px] focus:outline-2 focus:outline-accent-blue focus:border-accent-blue"
+            />
+          </div>
+
+          <div>
+            <label for="slug" class="block text-sm font-medium text-text-primary mb-1.5">
+              スラッグ（URL）
+            </label>
+            <div class="flex items-center gap-2">
+              <span class="text-sm text-text-secondary whitespace-nowrap">/blog/</span>
+              <input
+                type="text"
+                id="slug"
+                name="slug"
+                maxlength="300"
+                pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
+                placeholder="auto-generated"
+                class="w-full px-3 py-2.5 text-base text-text-primary bg-surface-base border border-border-default rounded-sm min-h-[44px] focus:outline-2 focus:outline-accent-blue focus:border-accent-blue"
+              />
+            </div>
+            <p class="text-xs text-text-secondary mt-1">空欄の場合は自動生成されます</p>
+          </div>
+        </div>
+      </Card>
+
+      <!-- Content -->
+      <Card padding="md">
+        <div class="flex flex-col gap-2">
+          <label class="block text-sm font-medium text-text-primary mb-1.5">
+            本文 <span class="text-danger">*</span>
+          </label>
+          <BlogEditor client:load content="" onChange="" />
+          <input type="hidden" id="content" name="content" value="" />
+        </div>
+      </Card>
+
+      <!-- Excerpt & Cover Image -->
+      <Card padding="md">
+        <div class="flex flex-col gap-4">
+          <div>
+            <label for="excerpt" class="block text-sm font-medium text-text-primary mb-1.5">
+              抜粋（メタディスクリプション）
+            </label>
+            <textarea
+              id="excerpt"
+              name="excerpt"
+              maxlength="500"
+              rows="3"
+              placeholder="記事の要約を入力（最大500文字）..."
+              class="w-full px-3 py-2.5 text-base text-text-primary bg-surface-base border border-border-default rounded-sm focus:outline-2 focus:outline-accent-blue focus:border-accent-blue resize-y"
+            />
+          </div>
+
+          <div>
+            <label for="cover_image_url" class="block text-sm font-medium text-text-primary mb-1.5">
+              カバー画像URL
+            </label>
+            <input
+              type="url"
+              id="cover_image_url"
+              name="cover_image_url"
+              placeholder="https://example.com/image.jpg"
+              class="w-full px-3 py-2.5 text-base text-text-primary bg-surface-base border border-border-default rounded-sm min-h-[44px] focus:outline-2 focus:outline-accent-blue focus:border-accent-blue"
+            />
+          </div>
+        </div>
+      </Card>
+
+      <!-- SEO Metadata -->
+      <Card padding="md">
+        <details class="flex flex-col gap-4">
+          <summary class="text-sm font-medium text-text-primary cursor-pointer select-none mb-2">
+            SEO設定（任意）
+          </summary>
+          <div class="flex flex-col gap-4">
+            <div>
+              <label for="meta_title" class="block text-sm font-medium text-text-primary mb-1.5">
+                メタタイトル
+              </label>
+              <input
+                type="text"
+                id="meta_title"
+                name="meta_title"
+                maxlength="200"
+                placeholder="SEO用のタイトル（空欄の場合は記事タイトルが使用されます）"
+                class="w-full px-3 py-2.5 text-base text-text-primary bg-surface-base border border-border-default rounded-sm min-h-[44px] focus:outline-2 focus:outline-accent-blue focus:border-accent-blue"
+              />
+            </div>
+            <div>
+              <label for="meta_description" class="block text-sm font-medium text-text-primary mb-1.5">
+                メタディスクリプション
+              </label>
+              <textarea
+                id="meta_description"
+                name="meta_description"
+                maxlength="500"
+                rows="2"
+                placeholder="SEO用の説明（空欄の場合は抜粋が使用されます）"
+                class="w-full px-3 py-2.5 text-base text-text-primary bg-surface-base border border-border-default rounded-sm focus:outline-2 focus:outline-accent-blue focus:border-accent-blue resize-y"
+              />
+            </div>
+            <div>
+              <label for="og_image_url" class="block text-sm font-medium text-text-primary mb-1.5">
+                OGP画像URL
+              </label>
+              <input
+                type="url"
+                id="og_image_url"
+                name="og_image_url"
+                placeholder="https://example.com/og-image.jpg"
+                class="w-full px-3 py-2.5 text-base text-text-primary bg-surface-base border border-border-default rounded-sm min-h-[44px] focus:outline-2 focus:outline-accent-blue focus:border-accent-blue"
+              />
+            </div>
+          </div>
+        </details>
+      </Card>
+
+      <!-- Actions -->
+      <div class="flex items-center gap-3 flex-wrap">
+        <Button type="submit" variant="accent" id="submit-btn">
+          下書きとして保存
+        </Button>
+        <Button type="button" variant="primary" id="publish-btn" onclick="publishArticle()">
+          公開する
+        </Button>
+        <a href="/dashboard/articles" class="text-sm text-text-secondary hover:text-text-primary transition-colors no-underline">
+          キャンセル
+        </a>
+      </div>
+    </form>
+  </div>
+</DashboardLayout>
+
+<script>
+  const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787';
+
+  // Handle BlogEditor content changes
+  document.addEventListener('DOMContentLoaded', () => {
+    const form = document.getElementById('article-form')!;
+    const editorIsland = form.querySelector('astro-island');
+
+    // Listen for content changes from the React island
+    const observer = new MutationObserver(() => {
+      const hiddenInput = document.getElementById('content') as HTMLInputElement;
+      if (hiddenInput && !hiddenInput.value) {
+        // Try to get content from the TipTap editor
+        const tiptap = document.querySelector('.tiptap');
+        if (tiptap) {
+          hiddenInput.value = tiptap.innerHTML;
+        }
+      }
+    });
+
+    if (editorIsland) {
+      observer.observe(editorIsland, { childList: true, subtree: true });
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      await submitArticle(false);
+    });
+  });
+
+  async function submitArticle(publish: boolean) {
+    const form = document.getElementById('article-form') as HTMLFormElement;
+    const title = (document.getElementById('title') as HTMLInputElement).value.trim();
+    const slug = (document.getElementById('slug') as HTMLInputElement).value.trim();
+    const excerpt = (document.getElementById('excerpt') as HTMLTextAreaElement).value.trim();
+    const coverImageUrl = (document.getElementById('cover_image_url') as HTMLInputElement).value.trim();
+
+    // Get content from tiptap
+    const tiptap = document.querySelector('.tiptap');
+    const content = tiptap ? tiptap.innerHTML : '';
+
+    if (!title) {
+      alert('タイトルを入力してください');
+      return;
+    }
+    if (!content || content === '<p></p>') {
+      alert('本文を入力してください');
+      return;
+    }
+
+    const body: Record<string, unknown> = { title, content };
+    if (slug) body.slug = slug;
+    if (excerpt) body.excerpt = excerpt;
+    if (coverImageUrl) body.cover_image_url = coverImageUrl;
+
+    // SEO metadata
+    const metaTitle = (document.getElementById('meta_title') as HTMLInputElement)?.value.trim();
+    const metaDescription = (document.getElementById('meta_description') as HTMLTextAreaElement)?.value.trim();
+    const ogImageUrl = (document.getElementById('og_image_url') as HTMLInputElement)?.value.trim();
+    if (metaTitle || metaDescription || ogImageUrl) {
+      body.seo_metadata = {
+        meta_title: metaTitle || undefined,
+        meta_description: metaDescription || undefined,
+        og_image_url: ogImageUrl || undefined,
+      };
+    }
+
+    if (publish) {
+      body.published_at = new Date().toISOString();
+    }
+
+    try {
+      const token = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('sb-token='))
+        ?.split('=')[1];
+
+      const res = await fetch(`${API_BASE}/api/articles`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (res.ok) {
+        const json = await res.json();
+        alert(publish ? '記事を公開しました' : '下書きを保存しました');
+        window.location.href = `/dashboard/articles/${json.data.id}/edit`;
+      } else {
+        const err = await res.json();
+        alert(`エラー: ${err.error?.message || '保存に失敗しました'}`);
+      }
+    } catch {
+      alert('ネットワークエラーが発生しました');
+    }
+  }
+
+  async function publishArticle() {
+    await submitArticle(true);
+  }
+</script>

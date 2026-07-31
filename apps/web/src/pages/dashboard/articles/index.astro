@@ -1,0 +1,203 @@
+---
+import DashboardLayout from '../layout.astro';
+import Button from '../../../components/ui/Button.astro';
+import Badge from '../../../components/ui/Badge.astro';
+import type { Article } from '@event-platform/shared';
+
+const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787';
+const token = Astro.cookies.get('sb-token')?.value || '';
+
+const page = Number(Astro.url.searchParams.get('page') || '1');
+const searchQuery = Astro.url.searchParams.get('search') || '';
+const statusFilter = Astro.url.searchParams.get('status') || '';
+const limit = 20;
+
+let articles: Article[] = [];
+let totalPages = 1;
+
+const headers = { 'Authorization': `Bearer ${token}` };
+
+try {
+  const params = new URLSearchParams();
+  params.set('page', String(page));
+  params.set('limit', String(limit));
+  if (statusFilter) params.set('status', statusFilter);
+  if (searchQuery) params.set('search', searchQuery);
+
+  const res = await fetch(`${API_BASE}/api/articles?${params.toString()}`, { headers });
+  if (res.ok) {
+    const json = await res.json();
+    articles = json.data || [];
+    totalPages = json.pagination?.total_pages || 1;
+  }
+} catch (err) {
+  console.error('Failed to fetch articles:', err);
+}
+
+const statusVariant: Record<string, 'default' | 'success' | 'warning' | 'danger' | 'info'> = {
+  draft: 'default',
+  published: 'success',
+  archived: 'warning',
+};
+
+const statusLabel: Record<string, string> = {
+  draft: '下書き',
+  published: '公開中',
+  archived: 'アーカイブ',
+};
+
+const formatDate = (dateStr: string): string => {
+  return new Date(dateStr).toLocaleDateString('ja-JP', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+};
+
+const breadcrumbs = [
+  { label: '記事管理' },
+];
+---
+
+<DashboardLayout title="記事管理" {breadcrumbs}>
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6 flex-wrap gap-4">
+    <h1 class="heading-lg text-text-primary">記事管理</h1>
+    <Button variant="accent" href="/dashboard/articles/new">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="12" y1="5" x2="12" y2="19" />
+        <line x1="5" y1="12" x2="19" y2="12" />
+      </svg>
+      新規作成
+    </Button>
+  </div>
+
+  <!-- Search & Filter -->
+  <div class="mb-4">
+    <form method="get" action="/dashboard/articles" class="flex gap-2 flex-wrap">
+      <div class="relative flex-1 max-w-md">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary">
+          <circle cx="11" cy="11" r="8" />
+          <line x1="21" y1="21" x2="16.65" y2="16.65" />
+        </svg>
+        <input
+          type="text"
+          name="search"
+          value={searchQuery}
+          placeholder="記事タイトルで検索..."
+          class="w-full pl-10 pr-4 py-2 text-sm text-text-primary bg-surface-base border border-border-default rounded-sm min-h-[44px] focus:outline-2 focus:outline-accent-blue focus:border-accent-blue"
+        />
+      </div>
+      <select
+        name="status"
+        value={statusFilter}
+        class="px-3 py-2 text-sm text-text-primary bg-surface-base border border-border-default rounded-sm min-h-[44px] focus:outline-2 focus:outline-accent-blue focus:border-accent-blue"
+      >
+        <option value="">すべてのステータス</option>
+        <option value="draft">下書き</option>
+        <option value="published">公開中</option>
+        <option value="archived">アーカイブ</option>
+      </select>
+      <Button type="submit" variant="secondary" size="sm">検索</Button>
+      {(searchQuery || statusFilter) && (
+        <a href="/dashboard/articles" class="text-sm text-text-secondary hover:text-text-primary transition-colors no-underline self-center">
+          クリア
+        </a>
+      )}
+    </form>
+  </div>
+
+  <!-- Articles Table -->
+  {articles.length > 0 ? (
+    <div class="border border-border-default rounded-md overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="bg-surface-soft border-b border-border-default">
+              <th class="text-left px-4 py-3 font-medium text-text-secondary">タイトル</th>
+              <th class="text-left px-4 py-3 font-medium text-text-secondary">ステータス</th>
+              <th class="text-left px-4 py-3 font-medium text-text-secondary hidden sm:table-cell">公開日</th>
+              <th class="text-left px-4 py-3 font-medium text-text-secondary hidden md:table-cell">更新日</th>
+              <th class="text-right px-4 py-3 font-medium text-text-secondary">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {articles.map((article) => (
+              <tr class="border-b border-border-default last:border-b-0 hover:bg-surface-soft transition-colors">
+                <td class="px-4 py-3">
+                  <a
+                    href={`/dashboard/articles/${article.id}/edit`}
+                    class="font-medium text-text-primary hover:text-accent-blue transition-colors no-underline"
+                  >
+                    {article.title}
+                  </a>
+                </td>
+                <td class="px-4 py-3">
+                  <Badge variant={statusVariant[article.status] ?? 'default'}>
+                    {statusLabel[article.status] ?? article.status}
+                  </Badge>
+                </td>
+                <td class="px-4 py-3 text-text-secondary hidden sm:table-cell">
+                  {article.published_at ? formatDate(article.published_at) : '—'}
+                </td>
+                <td class="px-4 py-3 text-text-secondary hidden md:table-cell">
+                  {formatDate(article.updated_at)}
+                </td>
+                <td class="px-4 py-3">
+                  <div class="flex items-center justify-end gap-1">
+                    <a
+                      href={`/dashboard/articles/${article.id}/edit`}
+                      class="inline-flex items-center justify-center w-8 h-8 min-w-[36px] min-h-[36px] rounded-sm text-text-secondary hover:text-accent-blue hover:bg-surface-medium transition-colors no-underline"
+                      title="編集"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                      </svg>
+                    </a>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  ) : (
+    <div class="text-center py-16 border border-border-default rounded-md">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="mx-auto text-text-secondary opacity-40 mb-4">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <polyline points="14 2 14 8 20 8" />
+        <line x1="16" y1="13" x2="8" y2="13" />
+        <line x1="16" y1="17" x2="8" y2="17" />
+        <polyline points="10 9 9 9 8 9" />
+      </svg>
+      <p class="heading-sm text-text-secondary mb-2">
+        {searchQuery || statusFilter ? '検索結果がありません' : '記事がありません'}
+      </p>
+      <p class="body-sm text-text-secondary mb-4">
+        {searchQuery || statusFilter ? '別の条件で検索してみてください' : '新しい記事を作成して始めましょう'}
+      </p>
+      {!searchQuery && !statusFilter && (
+        <Button variant="accent" href="/dashboard/articles/new">新規記事作成</Button>
+      )}
+    </div>
+  )}
+
+  <!-- Pagination -->
+  {totalPages > 1 && (
+    <div class="flex items-center justify-center gap-3 mt-6">
+      {page > 1 && (
+        <a href={`/dashboard/articles?${new URLSearchParams({ ...(searchQuery ? { search: searchQuery } : {}), ...(statusFilter ? { status: statusFilter } : {}), page: String(page - 1) }).toString()}`} class="px-3 py-1.5 text-sm border border-border-default rounded-sm text-text-primary hover:bg-surface-soft transition-colors no-underline min-h-[36px] inline-flex items-center">
+          ← 前へ
+        </a>
+      )}
+      <span class="caption-mono text-text-secondary">{page} / {totalPages}</span>
+      {page < totalPages && (
+        <a href={`/dashboard/articles?${new URLSearchParams({ ...(searchQuery ? { search: searchQuery } : {}), ...(statusFilter ? { status: statusFilter } : {}), page: String(page + 1) }).toString()}`} class="px-3 py-1.5 text-sm border border-border-default rounded-sm text-text-primary hover:bg-surface-soft transition-colors no-underline min-h-[36px] inline-flex items-center">
+          次へ →
+        </a>
+      )}
+    </div>
+  )}
+</DashboardLayout>

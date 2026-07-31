@@ -1,0 +1,229 @@
+---
+import Layout from '../layouts/Layout.astro';
+import EventCard from '../components/EventCard.astro';
+import Button from '../components/ui/Button.astro';
+import Input from '../components/ui/Input.astro';
+import Badge from '../components/ui/Badge.astro';
+import type { Event } from '@event-platform/shared';
+
+const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787';
+
+// Query parameters
+const q = Astro.url.searchParams.get('q') || '';
+const category = Astro.url.searchParams.get('category') || '';
+const dateFrom = Astro.url.searchParams.get('date_from') || '';
+const dateTo = Astro.url.searchParams.get('date_to') || '';
+const region = Astro.url.searchParams.get('region') || '';
+const page = Number(Astro.url.searchParams.get('page') || '1');
+const limit = 20;
+
+let events: Event[] = [];
+let totalPages = 1;
+let total = 0;
+let categories: { name: string; count: number }[] = [];
+
+// Fetch categories for filter dropdown
+try {
+  const catRes = await fetch(`${API_BASE}/api/search/categories`);
+  if (catRes.ok) {
+    const catJson = await catRes.json();
+    categories = catJson.data || [];
+  }
+} catch (err) {
+  console.error('Failed to fetch categories:', err);
+}
+
+// Fetch search results
+try {
+  const params = new URLSearchParams();
+  params.set('page', String(page));
+  params.set('limit', String(limit));
+  if (q) params.set('q', q);
+  if (category) params.set('category', category);
+  if (dateFrom) params.set('date_from', dateFrom);
+  if (dateTo) params.set('date_to', dateTo);
+  if (region) params.set('region', region);
+
+  const res = await fetch(`${API_BASE}/api/search/events?${params.toString()}`);
+  if (res.ok) {
+    const json = await res.json();
+    events = json.data || [];
+    totalPages = json.pagination?.total_pages || 1;
+    total = json.pagination?.total || 0;
+  }
+} catch (err) {
+  console.error('Failed to search events:', err);
+}
+
+// Build pagination URL helper
+const buildPageUrl = (newPage: number): string => {
+  const params = new URLSearchParams();
+  params.set('page', String(newPage));
+  params.set('limit', String(limit));
+  if (q) params.set('q', q);
+  if (category) params.set('category', category);
+  if (dateFrom) params.set('date_from', dateFrom);
+  if (dateTo) params.set('date_to', dateTo);
+  if (region) params.set('region', region);
+  return `/search?${params.toString()}`;
+};
+---
+
+<Layout title="イベント検索" description="イベントを検索して探す">
+  <main class="mx-auto max-w-7xl px-4 py-12 lg:px-6">
+    <!-- Page Header -->
+    <div class="mb-8">
+      <h1 class="display-md text-text-primary mb-2">イベント検索</h1>
+      <p class="body-lg text-text-secondary">
+        {total > 0 ? `${total}件のイベントが見つかりました` : 'キーワードやカテゴリでイベントを探す'}
+      </p>
+    </div>
+
+    <!-- Search & Filters -->
+    <form class="flex flex-col gap-4 mb-8" method="get" action="/search">
+      <!-- Search box -->
+      <div class="flex flex-col sm:flex-row gap-3">
+        <div class="flex-1">
+          <Input
+            name="q"
+            placeholder="キーワードで検索..."
+            value={q}
+          />
+        </div>
+        <Button type="submit" variant="primary">検索</Button>
+      </div>
+
+      <!-- Filter row -->
+      <div class="flex flex-wrap gap-3">
+        <!-- Category -->
+        <select
+          name="category"
+          class="px-3 py-2.5 text-base text-text-primary bg-surface-base border border-border-default rounded-sm min-h-[44px] focus:outline-2 focus:outline-accent-blue focus:border-accent-blue"
+        >
+          <option value="">すべてのカテゴリ</option>
+          {categories.map((cat) => (
+            <option value={cat.name} selected={category === cat.name}>
+              {cat.name} ({cat.count})
+            </option>
+          ))}
+        </select>
+
+        <!-- Region -->
+        <select
+          name="region"
+          class="px-3 py-2.5 text-base text-text-primary bg-surface-base border border-border-default rounded-sm min-h-[44px] focus:outline-2 focus:outline-accent-blue focus:border-accent-blue"
+        >
+          <option value="">すべての地域</option>
+          <option value="hokkaido" selected={region === 'hokkaido'}>北海道</option>
+          <option value="tohoku" selected={region === 'tohoku'}>東北</option>
+          <option value="kanto" selected={region === 'kanto'}>関東</option>
+          <option value="chubu" selected={region === 'chubu'}>中部</option>
+          <option value="kinki" selected={region === 'kinki'}>近畿</option>
+          <option value="chugoku" selected={region === 'chugoku'}>中国</option>
+          <option value="shikoku" selected={region === 'shikoku'}>四国</option>
+          <option value="kyushu" selected={region === 'kyushu'}>九州</option>
+          <option value="okinawa" selected={region === 'okinawa'}>沖縄</option>
+          <option value="online" selected={region === 'online'}>オンライン</option>
+        </select>
+
+        <!-- Date From -->
+        <input
+          type="date"
+          name="date_from"
+          value={dateFrom}
+          class="px-3 py-2.5 text-base text-text-primary bg-surface-base border border-border-default rounded-sm min-h-[44px] focus:outline-2 focus:outline-accent-blue focus:border-accent-blue"
+          placeholder="開始日"
+        />
+
+        <!-- Date To -->
+        <input
+          type="date"
+          name="date_to"
+          value={dateTo}
+          class="px-3 py-2.5 text-base text-text-primary bg-surface-base border border-border-default rounded-sm min-h-[44px] focus:outline-2 focus:outline-accent-blue focus:border-accent-blue"
+          placeholder="終了日"
+        />
+      </div>
+    </form>
+
+    <!-- Active Filters -->
+    {(q || category || region || dateFrom || dateTo) && (
+      <div class="flex flex-wrap gap-2 mb-6">
+        <span class="caption-mono text-text-secondary">絞り込み:</span>
+        {q && (
+          <Badge variant="info">キーワード: {q}</Badge>
+        )}
+        {category && (
+          <Badge variant="default">カテゴリ: {category}</Badge>
+        )}
+        {region && (
+          <Badge variant="default">地域: {region}</Badge>
+        )}
+        {dateFrom && (
+          <Badge variant="default">開始: {dateFrom}</Badge>
+        )}
+        {dateTo && (
+          <Badge variant="default">終了: {dateTo}</Badge>
+        )}
+        <a href="/search" class="caption-mono text-accent-blue hover:underline no-underline">
+          クリア
+        </a>
+      </div>
+    )}
+
+    <!-- Event Grid -->
+    {events.length > 0 ? (
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
+        {events.map((event) => (
+          <EventCard event={event} />
+        ))}
+      </div>
+    ) : (
+      <div class="text-center py-16">
+        <div class="text-text-secondary mb-4">
+          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="mx-auto opacity-40">
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+        </div>
+        <p class="heading-md text-text-secondary mb-2">イベントが見つかりませんでした</p>
+        <p class="body-sm text-text-secondary">検索条件を変更してお試しください</p>
+      </div>
+    )}
+
+    <!-- Pagination -->
+    {totalPages > 1 && (
+      <nav class="flex items-center justify-center gap-3" aria-label="ページネーション">
+        {page > 1 ? (
+          <a
+            href={buildPageUrl(page - 1)}
+            class="inline-flex items-center justify-center px-4 py-2 text-sm font-medium border border-border-default rounded-sm text-text-primary hover:bg-surface-soft transition-colors no-underline min-h-[44px]"
+          >
+            ← 前へ
+          </a>
+        ) : (
+          <span class="inline-flex items-center px-4 py-2 text-sm font-medium border border-border-subtle rounded-sm text-text-secondary opacity-50 min-h-[44px]">
+            ← 前へ
+          </span>
+        )}
+
+        <span class="caption-mono text-text-secondary px-3">
+          {page} / {totalPages}
+        </span>
+
+        {page < totalPages ? (
+          <a
+            href={buildPageUrl(page + 1)}
+            class="inline-flex items-center justify-center px-4 py-2 text-sm font-medium border border-border-default rounded-sm text-text-primary hover:bg-surface-soft transition-colors no-underline min-h-[44px]"
+          >
+            次へ →
+          </a>
+        ) : (
+          <span class="inline-flex items-center px-4 py-2 text-sm font-medium border border-border-subtle rounded-sm text-text-secondary opacity-50 min-h-[44px]">
+            次へ →
+          </span>
+        )}
+      </nav>
+    )}
+  </main>
+</Layout>

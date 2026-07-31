@@ -6,4 +6,5 @@ export * from './support.js';
 export * from './messaging.js';
 export * from './email.js';
 export * from './article.js';
+export * from './community.js';
 export * from './api.js';

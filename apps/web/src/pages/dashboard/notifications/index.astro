@@ -278,7 +278,7 @@ const formatDate = (dateStr: string): string => {
         .find(row => row.startsWith('sb-token='))
         ?.split('=')[1];
 
-      const res = await fetch(`${import.meta.env.PUBLIC_API_URL || 'http://localhost:8787'}/api/notifications/read`, {
+      const res = await fetch(`${import.meta.env.PUBLIC_API_URL || 'http://localhost:8787'}/api/notifications/read-one`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

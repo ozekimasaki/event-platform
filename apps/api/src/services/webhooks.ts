@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Webhook, WebhookEvent, WebhookEventType } from '@event-platform/shared';
+import type { Webhook, WebhookEventType } from '@event-platform/shared';
 
 // ============================================
 // HMAC-SHA256 SIGNATURE

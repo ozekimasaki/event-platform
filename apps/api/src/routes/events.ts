@@ -13,7 +13,7 @@ import {
 } from '../services/events.js';
 import { createEventSchema, updateEventSchema, eventQuerySchema } from '@event-platform/shared';
 
-const events = new Hono();
+const events = new Hono<AuthContext>();
 
 // GET /api/events - List events (public, paginated)
 events.get('/', async (c) => {

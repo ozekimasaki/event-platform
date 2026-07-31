@@ -10,7 +10,7 @@ import {
 } from '../services/webhooks.js';
 import { createWebhookSchema } from '@event-platform/shared';
 
-const webhooks = new Hono();
+const webhooks = new Hono<AuthContext>();
 
 // POST /api/webhooks - Create webhook
 webhooks.post('/', async (c) => {

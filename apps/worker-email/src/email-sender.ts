@@ -1,4 +1,3 @@
-import PostalMime from 'postal-mime';
 import {
   registrationConfirmationHtml,
   registrationConfirmationText,
@@ -67,7 +66,7 @@ export default {
 
         for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
           try {
-            const response = await env.SEND_EMAIL.send({
+            await env.SEND_EMAIL.send({
               to: email.to,
               from: email.from,
               subject: email.subject,
@@ -75,28 +74,24 @@ export default {
               text: text,
             });
 
-            if (response.ok) {
-              sent = true;
+            // send() resolves on success, throws on failure
+            sent = true;
 
-              // Log success to D1
-              await env.EMAIL_LOG_DB.prepare(
-                `INSERT INTO email_log (to_email, from_email, subject, status, sent_at)
-                 VALUES (?, ?, ?, ?, ?)`
+            // Log success to D1
+            await env.EMAIL_LOG_DB.prepare(
+              `INSERT INTO email_log (to_email, from_email, subject, status, sent_at)
+               VALUES (?, ?, ?, ?, ?)`
+            )
+              .bind(
+                email.to,
+                email.from,
+                email.subject,
+                'sent',
+                new Date().toISOString()
               )
-                .bind(
-                  email.to,
-                  email.from,
-                  email.subject,
-                  'sent',
-                  new Date().toISOString()
-                )
-                .run();
+              .run();
 
-              break;
-            } else {
-              lastError = new Error(`Email send failed: ${JSON.stringify(response)}`);
-              console.error(`Email send attempt ${attempt}/${MAX_RETRIES} failed:`, response);
-            }
+            break;
           } catch (sendError) {
             lastError = sendError instanceof Error ? sendError : new Error(String(sendError));
             console.error(`Email send attempt ${attempt}/${MAX_RETRIES} error:`, lastError.message);

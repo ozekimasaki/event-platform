@@ -83,7 +83,7 @@ checkin.post('/events/:slug/check-in', async (c) => {
       if (event && c.env.CHECK_IN_COORDINATOR) {
         const doId = c.env.CHECK_IN_COORDINATOR.idFromName(event.id);
         const doStub = c.env.CHECK_IN_COORDINATOR.get(doId);
-        const doUrl = new URL(request.url);
+        const doUrl = new URL(c.req.raw.url);
         doUrl.pathname = `/check-in-broadcast`;
         await doStub.fetch(new Request(doUrl.toString(), {
           method: 'POST',
@@ -258,7 +258,7 @@ checkin.get('/registrations/:id/qr-code', async (c) => {
     // Allow access to owner or event organizer
     if (registration.user_id !== user.id) {
       // Check if user is organizer
-      const { data: regFull } = await supabase
+      const { data: _regFull } = await supabase
         .from('registrations')
         .select('event_id, events!inner(organizer_id)')
         .eq('id', registrationId)

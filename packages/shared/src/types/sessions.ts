@@ -13,19 +13,6 @@ export interface Session {
   updated_at: string;
 }
 
-// Speaker Material (for CfP approved speakers)
-export interface SpeakerMaterial {
-  id: string;
-  session_id: string;
-  speaker_name: string;
-  speaker_email: string;
-  bio?: string;
-  photo_url?: string;
-  slides_url?: string;
-  created_at: string;
-  updated_at: string;
-}
-
 // CfP Submission Status
 export type CfpStatus = 'pending' | 'approved' | 'rejected';
 

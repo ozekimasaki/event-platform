@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import type { Env } from '../services/supabase.js';
 import type { AuthContext } from '../middleware/auth.js';
-import { getSupabaseClient, getAdminClient } from '../services/supabase.js';
+import { getSupabaseClient } from '../services/supabase.js';
 import { notifySchema, individualNotifySchema } from '@event-platform/shared';
 import {
   sendBulkNotification,
@@ -9,7 +9,7 @@ import {
   getNotificationHistory,
   getDeliveryStats,
 } from '../services/messaging.js';
-import { getEventBySlug, getEventById } from '../services/events.js';
+import { getEventBySlug } from '../services/events.js';
 
 // Router for messaging/notifications (mounted at /api with auth)
 export const messaging = new Hono<{ Bindings: Env }>();

@@ -14,7 +14,7 @@ export const createPaymentIntent = async (
   env: Env
 ): Promise<{ client_secret: string; payment_intent_id: string; amount: number; currency: string }> => {
   const stripe = new Stripe(env.STRIPE_SECRET_KEY, {
-    apiVersion: '2025-03-31.basil',
+    apiVersion: '2026-07-29.dahlia',
   });
 
   const paymentIntent = await stripe.paymentIntents.create({
@@ -79,7 +79,7 @@ export const handleStripeWebhook = async (
   supabase: SupabaseClient
 ): Promise<void> => {
   const stripe = new Stripe(env.STRIPE_SECRET_KEY, {
-    apiVersion: '2025-03-31.basil',
+    apiVersion: '2026-07-29.dahlia',
   });
 
   const event = stripe.webhooks.constructEvent(

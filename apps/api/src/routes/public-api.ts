@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import type { AuthContext } from '../middleware/auth.js';
 import { getSupabaseClient } from '../services/supabase.js';
 import { validateApiKey } from '../services/api-keys.js';
 import { listEvents, getEventBySlug } from '../services/events.js';
@@ -47,7 +48,7 @@ const hasScope = (c: Context, requiredScope: ApiKeyScope): boolean => {
 // PUBLIC API ROUTES
 // ============================================
 
-const publicApi = new Hono();
+const publicApi = new Hono<AuthContext>();
 
 // GET /public/api/events - List published events (no auth required)
 publicApi.get('/events', async (c) => {
@@ -92,7 +93,7 @@ publicApi.get('/events/:slug/participants', apiKeyAuthMiddleware, async (c) => {
     );
   }
 
-  const slug = c.req.param('slug');
+  const slug = c.req.param('slug')!;
   const supabase = getSupabaseClient(c.env);
 
   const event = await getEventBySlug(slug, supabase);

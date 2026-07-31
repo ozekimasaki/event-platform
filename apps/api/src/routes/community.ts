@@ -13,7 +13,7 @@ import {
 } from '../services/community.js';
 import { updateProfileSchema, createEventSeriesSchema } from '@event-platform/shared';
 
-const community = new Hono();
+const community = new Hono<AuthContext>();
 
 // GET /api/organizers/:slug - Get organizer profile (public)
 community.get('/:slug', async (c) => {

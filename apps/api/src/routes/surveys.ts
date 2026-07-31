@@ -22,7 +22,7 @@ import {
 // Mounted at: /api/events  (patterns: /:eventId/surveys/...)
 // ============================================
 
-const eventSurveys = new Hono();
+const eventSurveys = new Hono<AuthContext>();
 
 // GET /api/events/:eventId/surveys - List surveys for event
 eventSurveys.get('/:eventId/surveys', async (c) => {
@@ -83,7 +83,7 @@ eventSurveys.post('/:eventId/surveys', async (c) => {
 // Mounted at: /api/surveys
 // ============================================
 
-const surveys = new Hono();
+const surveys = new Hono<AuthContext>();
 
 // GET /api/surveys/:id - Get survey detail
 surveys.get('/:id', async (c) => {

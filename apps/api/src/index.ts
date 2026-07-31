@@ -20,6 +20,7 @@ import { community } from './routes/community.js';
 import { eventSurveys, surveys } from './routes/surveys.js';
 import { sessions } from './routes/sessions.js';
 import { cfp } from './routes/cfp.js';
+import { materials } from './routes/materials.js';
 import { authMiddleware, optionalAuthMiddleware } from './middleware/auth.js';
 import { CheckInCoordinator } from './durable-objects/check-in.js';
 import { EventChatRoom } from './durable-objects/chat.js';
@@ -98,6 +99,11 @@ app.route('/api', sessions);
 app.use('/api/events/*', optionalAuthMiddleware);
 app.use('/api/cfp/*', optionalAuthMiddleware);
 app.route('/api', cfp);
+
+// Materials routes (public GET, auth-checked POST/DELETE)
+app.use('/api/events/*', optionalAuthMiddleware);
+app.use('/api/materials/*', optionalAuthMiddleware);
+app.route('/api', materials);
 
 // Support routes (mixed: some public FAQ, some auth-required tickets)
 app.route('/api', support);

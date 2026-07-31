@@ -48,7 +48,7 @@ export default {
   },
 };
 
-async function sendPushNotification(notification: NotificationJob, env: Env): Promise<void> {
+async function sendPushNotification(notification: NotificationJob, _env: Env): Promise<void> {
   // Placeholder for push notification delivery
   // Will integrate with Web Push API or third-party service
   console.log(`Push notification: ${notification.title} - ${notification.body}`);

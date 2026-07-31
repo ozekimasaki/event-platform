@@ -38,8 +38,8 @@ const CheckInDashboard: React.FC<CheckInDashboardProps> = ({
   const [isConnected, setIsConnected] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
-  const pollIntervalRef = useRef<ReturnType<typeof setInterval>>();
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
 
   // Fetch initial status via REST
   const fetchStatus = useCallback(async () => {

@@ -97,11 +97,11 @@ export class EventChatRoom {
     }
   }
 
-  async webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean): Promise<void> {
+  async webSocketClose(_ws: WebSocket, code: number, _reason: string, wasClean: boolean): Promise<void> {
     console.log(`WebSocket closed: code=${code}, clean=${wasClean}`);
   }
 
-  async webSocketError(ws: WebSocket, error: unknown): Promise<void> {
+  async webSocketError(_ws: WebSocket, error: unknown): Promise<void> {
     console.error('WebSocket error:', error);
   }
 

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { createPaymentRecord, getEventPayments } from './payments.js';
 
 // Mock Stripe module (not used directly in these tests but imported by the module)

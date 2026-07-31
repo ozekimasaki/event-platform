@@ -1,5 +1,4 @@
 import { Hono } from 'hono';
-import type { AuthContext, AuthUser } from '../middleware/auth.js';
 import { getAdminClient } from '../services/supabase.js';
 import type { Env } from '../services/supabase.js';
 import { getChatHistory } from '../services/chat.js';

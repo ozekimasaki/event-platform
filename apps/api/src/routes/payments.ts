@@ -95,7 +95,7 @@ export const getEventPaymentsRoute = async (c: Context<{ Bindings: Env }>) => {
     return c.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, 401);
   }
 
-  const slug = c.req.param('slug');
+  const slug = c.req.param('slug')!;
   const supabase = getSupabaseClient(c.env, (authCtx as any).get('jwt'));
 
   const event = await getEventBySlug(slug, supabase);

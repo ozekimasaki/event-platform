@@ -9,7 +9,7 @@ import {
   getEmailLogs,
   getEmailDeliveryStats,
 } from '../services/email.js';
-import { getEventById, getEventBySlug } from '../services/events.js';
+import { getEventById } from '../services/events.js';
 
 // Email routes (mounted at /api with auth)
 export const email = new Hono<{ Bindings: Env }>();

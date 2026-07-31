@@ -1,0 +1,169 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import Card from '../../../components/ui/Card.astro';
+import Badge from '../../../components/ui/Badge.astro';
+import Button from '../../../components/ui/Button.astro';
+import type { SpeakerMaterial, Session } from '@event-platform/shared';
+
+const { slug } = Astro.params;
+const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787';
+
+// Fetch event
+let event: any = null;
+let sessionsList: Session[] = [];
+let materialsMap: Record<string, SpeakerMaterial[]> = {};
+let error = '';
+
+try {
+  const eventRes = await fetch(`${API_BASE}/api/events/${slug}`);
+  if (eventRes.ok) {
+    const eventJson = await eventRes.json();
+    event = eventJson.data;
+  }
+} catch (err) {
+  error = 'イベントの読み込みに失敗しました';
+}
+
+// Fetch sessions and materials
+if (event) {
+  try {
+    const sessRes = await fetch(`${API_BASE}/api/events/${event.id}/sessions`);
+    if (sessRes.ok) {
+      const sessJson = await sessRes.json();
+      sessionsList = sessJson.data || [];
+    }
+  } catch (err) {
+    console.error('Failed to fetch sessions:', err);
+  }
+
+  try {
+    const matRes = await fetch(`${API_BASE}/api/events/${event.id}/materials`);
+    if (matRes.ok) {
+      const matJson = await matRes.json();
+      const allMaterials: SpeakerMaterial[] = matJson.data || [];
+      // Group by session_id
+      for (const mat of allMaterials) {
+        if (!materialsMap[mat.session_id]) materialsMap[mat.session_id] = [];
+        materialsMap[mat.session_id].push(mat);
+      }
+    }
+  } catch (err) {
+    console.error('Failed to fetch materials:', err);
+  }
+}
+
+const formatDate = (dateStr: string): string => {
+  return new Date(dateStr).toLocaleTimeString('ja-JP', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+
+const getFileIcon = (fileType: string): string => {
+  switch (fileType) {
+    case 'pdf': return '📄';
+    case 'ppt':
+    case 'pptx': return '📊';
+    case 'png':
+    case 'jpg': return '🖼️';
+    default: return '📎';
+  }
+};
+---
+
+<Layout title={event ? `${event.title} - 登壇資料` : '登壇資料'}>
+  <div class="max-w-5xl mx-auto px-4 py-8">
+    {event ? (
+      <>
+        <!-- Event Header -->
+        <div class="mb-8">
+          <a href={`/events/${slug}`} class="text-sm text-accent-blue hover:underline no-underline mb-2 inline-block">
+            ← イベント詳細に戻る
+          </a>
+          <h1 class="text-3xl font-bold text-text-primary mb-2">{event.title} - 登壇資料</h1>
+          <p class="text-text-secondary">セッションの登壇資料をダウンロードできます</p>
+        </div>
+
+        {sessionsList.length > 0 ? (
+          <div class="flex flex-col gap-6">
+            {sessionsList.map((session) => {
+              const sessionMaterials = materialsMap[session.id] || [];
+              return (
+                <Card padding="md">
+                  <div class="mb-4">
+                    <div class="flex items-start justify-between gap-4">
+                      <div>
+                        <h3 class="text-lg font-semibold text-text-primary mb-1">{session.title}</h3>
+                        <div class="flex items-center gap-3 text-sm text-text-secondary">
+                          <span class="flex items-center gap-1">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                              <circle cx="12" cy="12" r="10" />
+                              <polyline points="12 6 12 12 16 14" />
+                            </svg>
+                            {formatDate(session.start_at)} - {formatDate(session.end_at)}
+                          </span>
+                          {session.track && <Badge variant="info">{session.track}</Badge>}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {sessionMaterials.length > 0 ? (
+                    <div class="flex flex-col gap-2">
+                      {sessionMaterials.map((material) => (
+                        <div class="flex items-center justify-between p-3 rounded-sm border border-border-default bg-surface-soft hover:bg-surface-medium transition-colors">
+                          <div class="flex items-center gap-3 min-w-0">
+                            <span class="text-xl shrink-0">{getFileIcon(material.file_type)}</span>
+                            <div class="min-w-0">
+                              <p class="text-sm font-medium text-text-primary truncate">{material.file_name}</p>
+                              <div class="flex items-center gap-2 mt-0.5">
+                                <span class="text-xs text-text-secondary uppercase">{material.file_type}</span>
+                                {material.access_level === 'participants_only' && (
+                                  <Badge variant="warning">参加者限定</Badge>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          <a
+                            href={`/api/materials/${material.id}/download`}
+                            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-accent-blue hover:bg-surface-medium rounded-sm transition-colors no-underline shrink-0"
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                              <polyline points="7 10 12 15 17 10" />
+                              <line x1="12" y1="15" x2="12" y2="3" />
+                            </svg>
+                            ダウンロード
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p class="text-sm text-text-secondary py-2">資料はまだ登録されていません</p>
+                  )}
+                </Card>
+              );
+            })}
+          </div>
+        ) : (
+          <Card padding="lg">
+            <div class="text-center py-8">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="mx-auto text-text-secondary opacity-40 mb-4">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+              </svg>
+              <p class="text-lg font-medium text-text-secondary mb-2">セッション情報がありません</p>
+              <p class="text-sm text-text-secondary">セッションが追加され次第、登壇資料が公開されます。</p>
+            </div>
+          </Card>
+        )}
+      </>
+    ) : (
+      <Card padding="lg">
+        <div class="text-center py-8">
+          <p class="text-lg font-medium text-text-secondary">{error || 'イベントが見つかりません'}</p>
+        </div>
+      </Card>
+    )}
+  </div>
+</Layout>

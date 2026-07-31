@@ -251,7 +251,7 @@ export const sendSMS = async (
       throw new Error(`Twilio API error: ${response.status}`);
     }
 
-    const result = await response.json();
+    const result = await response.json() as { sid: string };
     return { success: true, sid: result.sid };
   } catch (error) {
     console.error('SMS send failed:', error);

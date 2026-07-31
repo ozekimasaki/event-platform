@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import type { AuthContext } from '../middleware/auth.js';
 import { getSupabaseClient } from '../services/supabase.js';
 import {
   searchEvents,
@@ -6,7 +7,7 @@ import {
   getCategories,
 } from '../services/search.js';
 
-const search = new Hono();
+const search = new Hono<AuthContext>();
 
 // GET /api/search/events?q=keyword&category=xxx&date_from=xxx&region=xxx&page=1&limit=20
 search.get('/events', async (c) => {

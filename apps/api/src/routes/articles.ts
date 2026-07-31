@@ -11,7 +11,7 @@ import {
 } from '../services/articles.js';
 import { createArticleSchema, updateArticleSchema, articleQuerySchema } from '@event-platform/shared';
 
-const articles = new Hono();
+const articles = new Hono<AuthContext>();
 
 // GET /api/articles - List published articles (public)
 articles.get('/', async (c) => {

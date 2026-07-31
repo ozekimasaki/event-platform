@@ -8,11 +8,9 @@ import type { Env } from '../services/supabase.js';
  */
 export class CheckInCoordinator {
   private state: DurableObjectState;
-  private env: Env;
 
-  constructor(state: DurableObjectState, env: Env) {
+  constructor(state: DurableObjectState, _env: Env) {
     this.state = state;
-    this.env = env;
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -80,13 +78,13 @@ export class CheckInCoordinator {
     }
   }
 
-  async webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean): Promise<void> {
+  async webSocketClose(_ws: WebSocket, code: number, _reason: string, wasClean: boolean): Promise<void> {
     // Clean up: remove any connection-specific data
     // The Durable Object automatically removes the WebSocket from the list
     console.log(`WebSocket closed: code=${code}, clean=${wasClean}`);
   }
 
-  async webSocketError(ws: WebSocket, error: unknown): Promise<void> {
+  async webSocketError(_ws: WebSocket, error: unknown): Promise<void> {
     console.error('WebSocket error:', error);
   }
 

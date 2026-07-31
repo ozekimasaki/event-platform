@@ -22,7 +22,7 @@ interface Env {
 }
 
 export default {
-  async email(message: ForwardableEmailMessage, env: Env, ctx: ExecutionContext): Promise<void> {
+  async email(message: ForwardableEmailMessage, env: Env, _ctx: ExecutionContext): Promise<void> {
     try {
       // Read the raw email
       const rawEmail = await new Response(message.raw).arrayBuffer();
@@ -38,9 +38,9 @@ export default {
         text: parsed.text,
         html: parsed.html,
         attachments: parsed.attachments?.map((att) => ({
-          filename: att.filename,
+          filename: att.filename ?? 'attachment',
           contentType: att.mimeType,
-          content: att.content,
+          content: att.content instanceof ArrayBuffer ? att.content : new Uint8Array(att.content as Uint8Array).buffer,
         })),
       };
 

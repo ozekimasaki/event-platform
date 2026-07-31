@@ -8,7 +8,6 @@ import {
   replyToTicket,
   updateTicketStatus,
   getEventTickets,
-  getUserTickets,
   getTicketDetail,
   createFAQ,
   getEventFAQs,

@@ -4,13 +4,12 @@ import { getSupabaseClient } from '../services/supabase.js';
 import {
   submitCfp,
   getCfpSubmissions,
-  getCfpById,
   reviewCfp,
   getCfpStats,
 } from '../services/cfp.js';
 import { createCfpSchema, reviewCfpSchema } from '@event-platform/shared';
 
-const cfp = new Hono();
+const cfp = new Hono<AuthContext>();
 
 // POST /api/events/:eventId/cfp - Submit CfP proposal (public)
 cfp.post('/events/:eventId/cfp', async (c) => {

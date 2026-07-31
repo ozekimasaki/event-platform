@@ -1,0 +1,326 @@
+---
+import DashboardLayout from '../../layout.astro';
+import Card from '../../../../components/ui/Card.astro';
+import Badge from '../../../../components/ui/Badge.astro';
+import Button from '../../../../components/ui/Button.astro';
+import type { SpeakerMaterial, Session } from '@event-platform/shared';
+
+const { id } = Astro.params;
+const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787';
+const token = Astro.cookies.get('sb-token')?.value || '';
+
+const headers = { 'Authorization': `Bearer ${token}` };
+
+// Fetch event
+let event: any = null;
+let sessionsList: Session[] = [];
+let materialsList: SpeakerMaterial[] = [];
+let materialsMap: Record<string, SpeakerMaterial[]> = {};
+
+try {
+  const eventRes = await fetch(`${API_BASE}/api/events/by-id/${id}`, { headers });
+  if (eventRes.ok) {
+    const eventJson = await eventRes.json();
+    event = eventJson.data;
+  }
+} catch (err) {
+  console.error('Failed to fetch event:', err);
+}
+
+// Fetch sessions and materials
+if (event) {
+  try {
+    const sessRes = await fetch(`${API_BASE}/api/events/${event.id}/sessions`, { headers });
+    if (sessRes.ok) {
+      const sessJson = await sessRes.json();
+      sessionsList = sessJson.data || [];
+    }
+  } catch (err) {
+    console.error('Failed to fetch sessions:', err);
+  }
+
+  try {
+    const matRes = await fetch(`${API_BASE}/api/events/${event.id}/materials`, { headers });
+    if (matRes.ok) {
+      const matJson = await matRes.json();
+      materialsList = matJson.data || [];
+      for (const mat of materialsList) {
+        if (!materialsMap[mat.session_id]) materialsMap[mat.session_id] = [];
+        materialsMap[mat.session_id].push(mat);
+      }
+    }
+  } catch (err) {
+    console.error('Failed to fetch materials:', err);
+  }
+}
+
+const getFileIcon = (fileType: string): string => {
+  switch (fileType) {
+    case 'pdf': return '📄';
+    case 'ppt':
+    case 'pptx': return '📊';
+    case 'png':
+    case 'jpg': return '🖼️';
+    default: return '📎';
+  }
+};
+
+const getSessionTitle = (sessionId: string): string => {
+  const session = sessionsList.find(s => s.id === sessionId);
+  return session?.title || '不明なセッション';
+};
+---
+
+<DashboardLayout
+  title="登壇資料管理"
+  breadcrumbs={[
+    { label: 'イベント管理', href: '/dashboard/events' },
+    { label: event?.title ?? 'イベント', href: `/dashboard/events/${id}/edit` },
+    { label: '登壇資料管理' },
+  ]}
+>
+  <div class="flex items-center justify-between mb-6 flex-wrap gap-4">
+    <div>
+      <h1 class="heading-lg text-text-primary">登壇資料管理</h1>
+      {event && <p class="text-sm text-text-secondary mt-1">{event.title}</p>}
+    </div>
+    <Button variant="accent" onclick="openUploadModal()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="12" y1="5" x2="12" y2="19" />
+        <line x1="5" y1="12" x2="19" y2="12" />
+      </svg>
+      資料アップロード
+    </Button>
+  </div>
+
+  <!-- Materials List grouped by session -->
+  {sessionsList.length > 0 ? (
+    <div class="flex flex-col gap-6">
+      {sessionsList.map((session) => {
+        const sessionMaterials = materialsMap[session.id] || [];
+        return (
+          <Card padding="md">
+            <div class="mb-4">
+              <h3 class="text-lg font-semibold text-text-primary">{session.title}</h3>
+              <p class="text-xs text-text-secondary mt-0.5">{sessionMaterials.length} 件の資料</p>
+            </div>
+
+            {sessionMaterials.length > 0 ? (
+              <div class="border border-border-default rounded-md overflow-hidden">
+                <div class="overflow-x-auto">
+                  <table class="w-full text-sm">
+                    <thead>
+                      <tr class="bg-surface-soft border-b border-border-default">
+                        <th class="text-left px-4 py-3 font-medium text-text-secondary">ファイル名</th>
+                        <th class="text-left px-4 py-3 font-medium text-text-secondary hidden sm:table-cell">種別</th>
+                        <th class="text-left px-4 py-3 font-medium text-text-secondary hidden md:table-cell">アクセスレベル</th>
+                        <th class="text-right px-4 py-3 font-medium text-text-secondary">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sessionMaterials.map((material) => (
+                        <tr class="border-b border-border-default last:border-b-0 hover:bg-surface-soft transition-colors">
+                          <td class="px-4 py-3">
+                            <div class="flex items-center gap-2">
+                              <span class="text-lg shrink-0">{getFileIcon(material.file_type)}</span>
+                              <div class="min-w-0">
+                                <p class="font-medium text-text-primary truncate max-w-xs">{material.file_name}</p>
+                                {material.description && (
+                                  <p class="text-xs text-text-secondary mt-0.5 truncate max-w-xs">{material.description}</p>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td class="px-4 py-3 hidden sm:table-cell">
+                            <span class="text-xs uppercase text-text-secondary">{material.file_type}</span>
+                          </td>
+                          <td class="px-4 py-3 hidden md:table-cell">
+                            {material.access_level === 'participants_only' ? (
+                              <Badge variant="warning">参加者限定</Badge>
+                            ) : (
+                              <Badge variant="success">公開</Badge>
+                            )}
+                          </td>
+                          <td class="px-4 py-3">
+                            <div class="flex items-center justify-end gap-1">
+                              <a
+                                href={`/api/materials/${material.id}/file`}
+                                class="inline-flex items-center justify-center w-8 h-8 min-w-[36px] min-h-[36px] rounded-sm text-text-secondary hover:text-accent-blue hover:bg-surface-medium transition-colors no-underline"
+                                title="ダウンロード"
+                              >
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                  <polyline points="7 10 12 15 17 10" />
+                                  <line x1="12" y1="15" x2="12" y2="3" />
+                                </svg>
+                              </a>
+                              <button
+                                type="button"
+                                class="inline-flex items-center justify-center w-8 h-8 min-w-[36px] min-h-[36px] rounded-sm text-text-secondary hover:text-danger hover:bg-surface-medium transition-colors"
+                                title="削除"
+                                data-material-id={material.id}
+                                data-material-name={material.file_name}
+                                onclick="handleDeleteMaterial(this)"
+                              >
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                  <polyline points="3 6 5 6 21 6" />
+                                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                </svg>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : (
+              <p class="text-sm text-text-secondary py-2">資料はまだ登録されていません</p>
+            )}
+          </Card>
+        );
+      })}
+    </div>
+  ) : (
+    <Card padding="lg">
+      <div class="text-center py-12">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="mx-auto text-text-secondary opacity-40 mb-4">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+        </svg>
+        <p class="heading-sm text-text-secondary mb-2">セッションがまだありません</p>
+        <p class="body-sm text-text-secondary mb-4">先にセッションを追加してから資料をアップロードできます</p>
+      </div>
+    </Card>
+  )}
+
+  <!-- Upload Modal -->
+  <div id="upload-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+    <div class="bg-surface-elevated border border-border-default rounded-md p-6 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+      <h2 class="text-lg font-semibold text-text-primary mb-4">資料アップロード</h2>
+      <form id="upload-form" class="space-y-4">
+        <div>
+          <label for="mat-session" class="block text-sm font-medium text-text-primary mb-1">セッション *</label>
+          <select id="mat-session" required class="w-full px-3 py-2 text-sm text-text-primary bg-surface-base border border-border-default rounded-sm min-h-[44px] focus:outline-2 focus:outline-accent-blue">
+            <option value="">セッションを選択</option>
+            {sessionsList.map((session) => (
+              <option value={session.id}>{session.title}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label for="mat-filename" class="block text-sm font-medium text-text-primary mb-1">ファイル名 *</label>
+          <input type="text" id="mat-filename" required maxlength="500" placeholder="例: presentation.pdf" class="w-full px-3 py-2 text-sm text-text-primary bg-surface-base border border-border-default rounded-sm min-h-[44px] focus:outline-2 focus:outline-accent-blue" />
+        </div>
+        <div>
+          <label for="mat-filetype" class="block text-sm font-medium text-text-primary mb-1">ファイル種別 *</label>
+          <select id="mat-filetype" required class="w-full px-3 py-2 text-sm text-text-primary bg-surface-base border border-border-default rounded-sm min-h-[44px] focus:outline-2 focus:outline-accent-blue">
+            <option value="">種別を選択</option>
+            <option value="pdf">PDF</option>
+            <option value="ppt">PPT</option>
+            <option value="pptx">PPTX</option>
+            <option value="png">PNG</option>
+            <option value="jpg">JPG</option>
+          </select>
+        </div>
+        <div>
+          <label for="mat-access" class="block text-sm font-medium text-text-primary mb-1">アクセスレベル *</label>
+          <select id="mat-access" required class="w-full px-3 py-2 text-sm text-text-primary bg-surface-base border border-border-default rounded-sm min-h-[44px] focus:outline-2 focus:outline-accent-blue">
+            <option value="public">公開</option>
+            <option value="participants_only">参加者限定</option>
+          </select>
+        </div>
+        <div>
+          <label for="mat-description" class="block text-sm font-medium text-text-primary mb-1">説明</label>
+          <textarea id="mat-description" rows="3" maxlength="1000" placeholder="資料の説明を入力" class="w-full px-3 py-2 text-sm text-text-primary bg-surface-base border border-border-default rounded-sm focus:outline-2 focus:outline-accent-blue resize-y" />
+        </div>
+        <div class="flex gap-2 pt-2">
+          <Button type="submit" variant="accent" id="upload-submit-btn">アップロード</Button>
+          <Button variant="secondary" onclick="closeModal()">キャンセル</Button>
+        </div>
+        <div id="upload-status" class="hidden"></div>
+      </form>
+    </div>
+  </div>
+</DashboardLayout>
+
+<script>
+  const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787';
+
+  function getToken(): string {
+    return document.cookie.split('; ').find(row => row.startsWith('sb-token='))?.split('=')[1] || '';
+  }
+
+  function openUploadModal() {
+    const modal = document.getElementById('upload-modal')!;
+    (document.getElementById('mat-filename') as HTMLInputElement).value = '';
+    (document.getElementById('mat-filetype') as HTMLSelectElement).value = '';
+    (document.getElementById('mat-access') as HTMLSelectElement).value = 'public';
+    (document.getElementById('mat-description') as HTMLTextAreaElement).value = '';
+    document.getElementById('upload-status')!.className = 'hidden';
+    modal.classList.remove('hidden');
+  }
+
+  function closeModal() {
+    document.getElementById('upload-modal')!.classList.add('hidden');
+  }
+
+  async function handleDeleteMaterial(btn: HTMLButtonElement) {
+    const materialId = btn.dataset.materialId;
+    const materialName = btn.dataset.materialName;
+    if (!confirm(`「${materialName}」を削除しますか？`)) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/api/materials/${materialId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${getToken()}` },
+      });
+      if (res.ok) location.reload();
+      else alert('削除に失敗しました');
+    } catch {
+      alert('エラーが発生しました');
+    }
+  }
+
+  document.getElementById('upload-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const statusEl = document.getElementById('upload-status')!;
+
+    const payload = {
+      session_id: (document.getElementById('mat-session') as HTMLSelectElement).value,
+      file_name: (document.getElementById('mat-filename') as HTMLInputElement).value,
+      file_type: (document.getElementById('mat-filetype') as HTMLSelectElement).value,
+      access_level: (document.getElementById('mat-access') as HTMLSelectElement).value,
+      description: (document.getElementById('mat-description') as HTMLTextAreaElement).value || undefined,
+    };
+
+    if (!payload.session_id) {
+      statusEl.className = 'p-2 rounded-sm text-sm bg-[color-mix(in_srgb,var(--color-danger)_15%,transparent)] text-danger';
+      statusEl.textContent = 'セッションを選択してください';
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/api/events/${window.location.pathname.split('/')[3]}/materials`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${getToken()}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        location.reload();
+      } else {
+        const json = await res.json();
+        statusEl.className = 'p-2 rounded-sm text-sm bg-[color-mix(in_srgb,var(--color-danger)_15%,transparent)] text-danger';
+        statusEl.textContent = json.error?.message || 'アップロードに失敗しました';
+      }
+    } catch {
+      statusEl.className = 'p-2 rounded-sm text-sm bg-[color-mix(in_srgb,var(--color-danger)_15%,transparent)] text-danger';
+      statusEl.textContent = 'エラーが発生しました';
+    }
+  });
+</script>

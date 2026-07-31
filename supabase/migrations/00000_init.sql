@@ -192,9 +192,11 @@ CREATE INDEX idx_sessions_event_id ON sessions(event_id);
 CREATE TABLE speaker_materials (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   session_id UUID NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-  title TEXT NOT NULL,
+  file_name TEXT NOT NULL,
   file_url TEXT NOT NULL,
   file_type TEXT NOT NULL,
+  access_level TEXT NOT NULL DEFAULT 'public',
+  description TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

@@ -4,7 +4,7 @@ import { getSupabaseClient } from '../services/supabase.js';
 import { generateApiKey, revokeApiKey, getApiKeys } from '../services/api-keys.js';
 import { createApiKeySchema } from '@event-platform/shared';
 
-const apiKeys = new Hono();
+const apiKeys = new Hono<AuthContext>();
 
 // POST /api/api-keys - Create API key
 apiKeys.post('/', async (c) => {

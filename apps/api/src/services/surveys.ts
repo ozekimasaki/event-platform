@@ -26,7 +26,7 @@ export const listSurveys = async (
     throw new Error(`Failed to list surveys: ${error.message}`);
   }
 
-  return (data ?? []).map(mapSurveyRow) as Survey[];
+  return (data ?? []).map(mapSurveyRow) as unknown as Survey[];
 };
 
 // ============================================
@@ -48,7 +48,7 @@ export const getSurveyById = async (
     throw new Error(`Failed to get survey: ${error.message}`);
   }
 
-  return mapSurveyRow(data) as Survey;
+  return mapSurveyRow(data) as unknown as Survey;
 };
 
 // ============================================
@@ -80,7 +80,7 @@ export const createSurvey = async (
     throw new Error(`Failed to create survey: ${error.message}`);
   }
 
-  return mapSurveyRow(survey) as Survey;
+  return mapSurveyRow(survey) as unknown as Survey;
 };
 
 // ============================================
@@ -114,7 +114,7 @@ export const updateSurvey = async (
     throw new Error(`Failed to update survey: ${error.message}`);
   }
 
-  return mapSurveyRow(survey) as Survey;
+  return mapSurveyRow(survey) as unknown as Survey;
 };
 
 // ============================================

@@ -6,13 +6,12 @@ import {
   updateSession,
   deleteSession,
   getSessions,
-  getSessionById,
   getTimetable,
   reorderSessions,
 } from '../services/sessions.js';
 import { createSessionSchema, updateSessionSchema, reorderSessionsSchema } from '@event-platform/shared';
 
-const sessions = new Hono();
+const sessions = new Hono<AuthContext>();
 
 // GET /api/events/:eventId/sessions - List sessions for event (public)
 sessions.get('/events/:eventId/sessions', async (c) => {
@@ -115,7 +114,6 @@ sessions.post('/events/:eventId/sessions/reorder', async (c) => {
     return c.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, 401);
   }
 
-  const eventId = c.req.param('eventId');
   const body = await c.req.json();
   const data = reorderSessionsSchema.parse(body);
 

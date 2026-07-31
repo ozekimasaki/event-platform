@@ -16,6 +16,7 @@ export interface Env {
   TRANSACTIONAL_QUEUE: Queue;
   MARKETING_QUEUE: Queue;
   CHECK_IN_COORDINATOR: DurableObjectNamespace;
+  EVENT_CHAT_ROOM: DurableObjectNamespace;
 }
 
 // ============================================

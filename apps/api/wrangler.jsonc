@@ -23,10 +23,12 @@
   },
   "durable_objects": {
     "bindings": [
-      { "name": "CHECK_IN_COORDINATOR", "class_name": "CheckInCoordinator" }
+      { "name": "CHECK_IN_COORDINATOR", "class_name": "CheckInCoordinator" },
+      { "name": "EVENT_CHAT_ROOM", "class_name": "EventChatRoom" }
     ]
   },
   "migrations": [
-    { "tag": "v1", "new_classes": ["CheckInCoordinator"] }
+    { "tag": "v1", "new_classes": ["CheckInCoordinator"] },
+    { "tag": "v2", "new_classes": ["EventChatRoom"] }
   ]
 }

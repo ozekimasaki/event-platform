@@ -13,7 +13,6 @@ import {
   createFAQ,
   getEventFAQs,
 } from '../services/support.js';
-import { getChatHistory } from '../services/chat.js';
 import { createTicketSchema, replySchema, faqSchema } from '@event-platform/shared';
 import type { TicketStatus } from '@event-platform/shared';
 
@@ -330,26 +329,6 @@ support.get('/events/:slug/faq', async (c) => {
     return c.json({ success: true, data: faqs });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to get FAQs';
-    return c.json({ success: false, error: { code: 'INTERNAL_ERROR', message } }, 500);
-  }
-});
-
-// ============================================
-// GET /api/events/:id/chat/history - Get chat history
-// ============================================
-
-support.get('/events/:id/chat/history', async (c) => {
-  const eventId = c.req.param('id');
-  const limit = Number(c.req.query('limit') || '50');
-  const before = c.req.query('before');
-
-  const supabase = getAdminClient(c.env);
-
-  try {
-    const messages = await getChatHistory(eventId, limit, before || undefined, supabase);
-    return c.json({ success: true, data: messages });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Failed to get chat history';
     return c.json({ success: false, error: { code: 'INTERNAL_ERROR', message } }, 500);
   }
 });

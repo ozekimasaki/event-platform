@@ -8,8 +8,12 @@ import { registrations } from './routes/registrations.js';
 import { tickets } from './routes/tickets.js';
 import { payments, handleStripeWebhookRoute, getEventPaymentsRoute } from './routes/payments.js';
 import { checkin } from './routes/checkin.js';
+import { support } from './routes/support.js';
+import { faq } from './routes/faq.js';
+import { chat } from './routes/chat.js';
 import { authMiddleware, optionalAuthMiddleware } from './middleware/auth.js';
 import { CheckInCoordinator } from './durable-objects/check-in.js';
+import { EventChatRoom } from './durable-objects/chat.js';
 import type { Env } from './services/supabase.js';
 
 // Create Hono app
@@ -18,7 +22,7 @@ const app = new Hono<{ Bindings: Env }>();
 // CORS middleware
 app.use('/*', cors({
   origin: ['http://localhost:4321', 'https://event-platform.pages.dev'],
-  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
 }));
@@ -50,6 +54,15 @@ app.route('/api', registrations);
 // Ticket routes
 app.route('/api', tickets);
 
+// FAQ routes (public GET endpoints)
+app.route('/api', faq);
+
+// Chat history route (public)
+app.route('/api', chat);
+
+// Support routes (mixed: some public FAQ, some auth-required tickets)
+app.route('/api', support);
+
 // Payment routes (auth required)
 app.use('/api/payments/*', authMiddleware);
 app.route('/api/payments', payments);
@@ -75,6 +88,21 @@ app.get('/ws/event/:eventId/checkin', async (c) => {
   // Forward the WebSocket upgrade request to the Durable Object
   const url = new URL(c.req.url);
   url.searchParams.set('eventId', eventId);
+  return doStub.fetch(new Request(url.toString(), c.req.raw));
+});
+
+// WebSocket route for real-time event chat
+app.get('/ws/event/:eventId/chat', async (c) => {
+  const eventId = c.req.param('eventId');
+  if (!eventId) {
+    return c.json({ success: false, error: { code: 'BAD_REQUEST', message: 'eventId required' } }, 400);
+  }
+
+  const doId = c.env.EVENT_CHAT_ROOM.idFromName(eventId);
+  const doStub = c.env.EVENT_CHAT_ROOM.get(doId);
+
+  // Forward the WebSocket upgrade request to the Durable Object
+  const url = new URL(c.req.url);
   return doStub.fetch(new Request(url.toString(), c.req.raw));
 });
 
@@ -117,4 +145,4 @@ app.notFound((c) => {
 
 // Export app for Cloudflare Workers
 export default app;
-export { CheckInCoordinator };
+export { CheckInCoordinator, EventChatRoom };

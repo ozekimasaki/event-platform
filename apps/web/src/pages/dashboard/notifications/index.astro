@@ -1,0 +1,334 @@
+---
+import DashboardLayout from '../layout.astro';
+import Button from '../../../components/ui/Button.astro';
+import Badge from '../../../components/ui/Badge.astro';
+import Card from '../../../components/ui/Card.astro';
+
+const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787';
+const token = Astro.cookies.get('sb-token')?.value || '';
+
+const page = Number(Astro.url.searchParams.get('page') || '1');
+const typeFilter = Astro.url.searchParams.get('type') || '';
+const limit = 20;
+
+let notifications: any[] = [];
+let totalPages = 1;
+let stats: any = null;
+
+const headers = { 'Authorization': `Bearer ${token}` };
+
+// Fetch stats
+try {
+  const statsRes = await fetch(`${API_BASE}/api/notifications/stats`, { headers });
+  if (statsRes.ok) {
+    const statsJson = await statsRes.json();
+    stats = statsJson.data;
+  }
+} catch (err) {
+  console.error('Failed to fetch notification stats:', err);
+}
+
+// Fetch notifications
+try {
+  const params = new URLSearchParams();
+  params.set('page', String(page));
+  params.set('limit', String(limit));
+  if (typeFilter) params.set('type', typeFilter);
+
+  const res = await fetch(`${API_BASE}/api/notifications?${params.toString()}`, { headers });
+  if (res.ok) {
+    const json = await res.json();
+    notifications = json.data || [];
+    totalPages = json.pagination?.total_pages || 1;
+  }
+} catch (err) {
+  console.error('Failed to fetch notifications:', err);
+}
+
+const typeVariant: Record<string, 'default' | 'success' | 'warning' | 'danger' | 'info'> = {
+  registration: 'info',
+  checkin: 'success',
+  payment: 'warning',
+  system: 'default',
+  email: 'info',
+};
+
+const typeLabel: Record<string, string> = {
+  registration: '参加登録',
+  checkin: 'チェックイン',
+  payment: '決済',
+  system: 'システム',
+  email: 'メール',
+};
+
+const typeTabs = [
+  { key: '', label: 'すべて' },
+  { key: 'registration', label: '参加登録' },
+  { key: 'checkin', label: 'チェックイン' },
+  { key: 'payment', label: '決済' },
+  { key: 'system', label: 'システム' },
+];
+
+const formatDate = (dateStr: string): string => {
+  return new Date(dateStr).toLocaleDateString('ja-JP', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+---
+
+<DashboardLayout
+  title="通知管理"
+  breadcrumbs={[{ label: '通知管理' }]}
+>
+  <!-- Stats Cards -->
+  {stats && (
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <Card padding="md">
+        <div class="flex items-start justify-between">
+          <div>
+            <p class="caption-mono text-text-secondary mb-1">総通知数</p>
+            <p class="text-2xl font-bold text-text-primary">{stats.total ?? 0}</p>
+          </div>
+          <div class="w-10 h-10 rounded-sm bg-accent-blue/10 flex items-center justify-center">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent-blue">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+            </svg>
+          </div>
+        </div>
+      </Card>
+
+      <Card padding="md">
+        <div class="flex items-start justify-between">
+          <div>
+            <p class="caption-mono text-text-secondary mb-1">未読</p>
+            <p class="text-2xl font-bold text-text-primary">{stats.unread ?? 0}</p>
+          </div>
+          <div class="w-10 h-10 rounded-sm bg-accent-rose/10 flex items-center justify-center">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent-rose">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+          </div>
+        </div>
+      </Card>
+
+      <Card padding="md">
+        <div class="flex items-start justify-between">
+          <div>
+            <p class="caption-mono text-text-secondary mb-1">今日</p>
+            <p class="text-2xl font-bold text-text-primary">{stats.today ?? 0}</p>
+          </div>
+          <div class="w-10 h-10 rounded-sm bg-accent-gold/10 flex items-center justify-center">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent-gold">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+              <line x1="16" y1="2" x2="16" y2="6" />
+              <line x1="8" y1="2" x2="8" y2="6" />
+              <line x1="3" y1="10" x2="21" y2="10" />
+            </svg>
+          </div>
+        </div>
+      </Card>
+
+      <Card padding="md">
+        <div class="flex items-start justify-between">
+          <div>
+            <p class="caption-mono text-text-secondary mb-1">今週</p>
+            <p class="text-2xl font-bold text-text-primary">{stats.this_week ?? 0}</p>
+          </div>
+          <div class="w-10 h-10 rounded-sm bg-[color-mix(in_srgb,var(--color-success)_15%,transparent)] flex items-center justify-center">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-success">
+              <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+              <polyline points="17 6 23 6 23 12" />
+            </svg>
+          </div>
+        </div>
+      </Card>
+    </div>
+  )}
+
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6 flex-wrap gap-4">
+    <h1 class="heading-lg text-text-primary">通知管理</h1>
+    <Button variant="secondary" id="read-all-btn" onclick="handleReadAll()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="20 6 9 17 4 12" />
+      </svg>
+      すべて既読にする
+    </Button>
+  </div>
+
+  <!-- Type Tabs -->
+  <div class="flex gap-1 mb-6 border-b border-border-default overflow-x-auto">
+    {typeTabs.map((tab) => (
+      <a
+        href={`/dashboard/notifications${tab.key ? `?type=${tab.key}` : ''}`}
+        class:list={[
+          'px-4 py-2.5 text-sm font-medium border-b-2 transition-colors no-underline -mb-px whitespace-nowrap',
+          typeFilter === tab.key
+            ? 'border-accent-blue text-accent-blue'
+            : 'border-transparent text-text-secondary hover:text-text-primary hover:border-border-default',
+        ]}
+      >
+        {tab.label}
+      </a>
+    ))}
+  </div>
+
+  <!-- Notifications List -->
+  {notifications.length > 0 ? (
+    <Card padding="none">
+      <div class="divide-y divide-border-default">
+        {notifications.map((notif) => (
+          <div
+            class:list={[
+              'flex items-start gap-4 px-4 py-4 transition-colors',
+              !notif.read_at ? 'bg-surface-soft' : 'hover:bg-surface-soft',
+            ]}
+          >
+            <!-- Unread indicator -->
+            <div class="pt-1.5 shrink-0">
+              {!notif.read_at ? (
+                <div class="w-2.5 h-2.5 rounded-full bg-accent-blue" />
+              ) : (
+                <div class="w-2.5 h-2.5" />
+              )}
+            </div>
+
+            <!-- Content -->
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 mb-1">
+                <Badge variant={typeVariant[notif.type] ?? 'default'}>
+                  {typeLabel[notif.type] ?? notif.type}
+                </Badge>
+                <time class="text-xs text-text-secondary">
+                  {formatDate(notif.created_at)}
+                </time>
+              </div>
+              <p class:list={['text-sm mb-1', !notif.read_at ? 'text-text-primary font-medium' : 'text-text-primary']}>
+                {notif.title}
+              </p>
+              {notif.message && (
+                <p class="text-sm text-text-secondary line-clamp-2">{notif.message}</p>
+              )}
+            </div>
+
+            <!-- Actions -->
+            <div class="shrink-0">
+              {!notif.read_at && (
+                <button
+                  type="button"
+                  class="inline-flex items-center justify-center w-8 h-8 min-w-[36px] min-h-[36px] rounded-sm text-text-secondary hover:text-accent-blue hover:bg-surface-medium transition-colors"
+                  title="既読にする"
+                  data-notification-id={notif.id}
+                  onclick="handleMarkRead(this)"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  ) : (
+    <div class="text-center py-16 border border-border-default rounded-md">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="mx-auto text-text-secondary opacity-40 mb-4">
+        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+        <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+      </svg>
+      <p class="heading-sm text-text-secondary mb-2">通知はありません</p>
+      <p class="body-sm text-text-secondary">新しい通知が届くとここに表示されます</p>
+    </div>
+  )}
+
+  <!-- Pagination -->
+  {totalPages > 1 && (
+    <div class="flex items-center justify-center gap-3 mt-6">
+      {page > 1 && (
+        <a href={`/dashboard/notifications${typeFilter ? `?type=${typeFilter}` : ''}&page=${page - 1}`} class="px-3 py-1.5 text-sm border border-border-default rounded-sm text-text-primary hover:bg-surface-soft transition-colors no-underline min-h-[36px] inline-flex items-center">
+          ← 前へ
+        </a>
+      )}
+      <span class="caption-mono text-text-secondary">{page} / {totalPages}</span>
+      {page < totalPages && (
+        <a href={`/dashboard/notifications${typeFilter ? `?type=${typeFilter}` : ''}&page=${page + 1}`} class="px-3 py-1.5 text-sm border border-border-default rounded-sm text-text-primary hover:bg-surface-soft transition-colors no-underline min-h-[36px] inline-flex items-center">
+          次へ →
+        </a>
+      )}
+    </div>
+  )}
+</DashboardLayout>
+
+<script>
+  async function handleMarkRead(btn: HTMLButtonElement) {
+    const notificationId = btn.dataset.notificationId;
+    if (!notificationId) return;
+
+    try {
+      const token = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('sb-token='))
+        ?.split('=')[1];
+
+      const res = await fetch(`${import.meta.env.PUBLIC_API_URL || 'http://localhost:8787'}/api/notifications/read`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ notification_id: notificationId }),
+      });
+
+      if (res.ok) {
+        // Remove the button and dot, update row style
+        const row = btn.closest('.divide-y > div');
+        if (row) {
+          row.classList.remove('bg-surface-soft');
+          const title = row.querySelector('p.text-sm.font-medium');
+          if (title) title.classList.remove('font-medium');
+          const dot = row.querySelector('.w-2\\.5');
+          if (dot) dot.className = 'w-2.5 h-2.5';
+        }
+        btn.remove();
+      }
+    } catch {
+      // Silent fail
+    }
+  }
+
+  async function handleReadAll() {
+    const btn = document.getElementById('read-all-btn')!;
+    btn.setAttribute('disabled', 'true');
+
+    try {
+      const token = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('sb-token='))
+        ?.split('=')[1];
+
+      const res = await fetch(`${import.meta.env.PUBLIC_API_URL || 'http://localhost:8787'}/api/notifications/read-all`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (res.ok) {
+        location.reload();
+      }
+    } catch {
+      // Silent fail
+    } finally {
+      btn.removeAttribute('disabled');
+    }
+  }
+</script>

@@ -173,7 +173,7 @@ try {
       body.recipient = formData.get('recipient');
     }
 
-    const endpoint = isBulk ? '/api/email/bulk' : '/api/email/send';
+    const endpoint = isBulk ? '/api/notifications/broadcast' : '/api/notifications/send';
 
     sendBtn.setAttribute('disabled', 'true');
     sendBtn.textContent = '送信中...';

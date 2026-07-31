@@ -1,0 +1,175 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Badge from '../../components/ui/Badge.astro';
+import type { Article } from '@event-platform/shared';
+
+const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787';
+const SITE_URL = import.meta.env.PUBLIC_SITE_URL || 'https://event-platform.pages.dev';
+
+const { slug } = Astro.params;
+
+let article: Article | null = null;
+let error = false;
+
+try {
+  const res = await fetch(`${API_BASE}/api/articles/${slug}`);
+  if (res.ok) {
+    const json = await res.json();
+    article = json.data;
+  } else {
+    error = true;
+  }
+} catch (err) {
+  console.error('Failed to fetch article:', err);
+  error = true;
+}
+
+if (error || !article) {
+  return Astro.redirect('/blog');
+}
+
+const formatDate = (dateStr: string): string => {
+  return new Date(dateStr).toLocaleDateString('ja-JP', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+};
+
+// SEO metadata
+const seoTitle = article.seo_metadata?.meta_title || article.title;
+const seoDescription = article.seo_metadata?.meta_description || article.excerpt || article.content.replace(/<[^>]*>/g, '').substring(0, 160);
+const ogImage = article.seo_metadata?.og_image_url || article.cover_image_url || `${SITE_URL}/og-default.png`;
+const articleUrl = `${SITE_URL}/blog/${article.slug}`;
+
+// JSON-LD structured data
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'BlogPosting',
+  headline: article.title,
+  description: seoDescription,
+  image: ogImage,
+  url: articleUrl,
+  datePublished: article.published_at || article.created_at,
+  dateModified: article.updated_at,
+  author: article.author_name ? {
+    '@type': 'Person',
+    name: article.author_name,
+  } : undefined,
+  publisher: {
+    '@type': 'Organization',
+    name: 'Event Platform',
+  },
+};
+---
+
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{seoTitle} | ブログ</title>
+    <meta name="description" content={seoDescription} />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content={seoTitle} />
+    <meta property="og:description" content={seoDescription} />
+    <meta property="og:url" content={articleUrl} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:site_name" content="Event Platform" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={seoTitle} />
+    <meta name="twitter:description" content={seoDescription} />
+    <meta name="twitter:image" content={ogImage} />
+
+    <!-- Canonical -->
+    <link rel="canonical" href={articleUrl} />
+
+    <!-- JSON-LD -->
+    <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+
+    <!-- Font preloads -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <style>
+      @import "tailwindcss";
+    </style>
+  </head>
+  <body class="min-h-screen bg-surface-base text-text-primary">
+    <!-- Minimal nav for blog -->
+    <nav class="border-b border-border-default bg-surface-base sticky top-0 z-50">
+      <div class="mx-auto max-w-4xl px-4 py-3 flex items-center gap-4">
+        <a href="/blog" class="text-text-secondary hover:text-text-primary transition-colors no-underline text-sm">
+          ← ブログ一覧
+        </a>
+      </div>
+    </nav>
+
+    <article class="mx-auto max-w-4xl px-4 py-12 lg:px-6">
+      <!-- Article Header -->
+      <header class="mb-8">
+        {article.cover_image_url && (
+          <div class="mb-6 overflow-hidden rounded-md">
+            <img
+              src={article.cover_image_url}
+              alt={article.title}
+              class="w-full h-64 sm:h-80 object-cover"
+            />
+          </div>
+        )}
+
+        <div class="flex items-center gap-3 text-sm text-text-secondary mb-4">
+          <time datetime={article.published_at || article.created_at}>
+            {formatDate(article.published_at || article.created_at)}
+          </time>
+          {article.status && (
+            <Badge variant={article.status === 'published' ? 'success' : 'default'}>
+              {article.status === 'published' ? '公開中' : article.status}
+            </Badge>
+          )}
+          {article.author_name && (
+            <span class="text-text-secondary">by {article.author_name}</span>
+          )}
+        </div>
+
+        <h1 class="display-lg text-text-primary mb-4">{article.title}</h1>
+
+        {article.excerpt && (
+          <p class="body-lg text-text-secondary border-l-2 border-accent-blue pl-4">
+            {article.excerpt}
+          </p>
+        )}
+      </header>
+
+      <!-- Article Content -->
+      <div class="prose prose-neutral max-w-none" set:html={article.content} />
+
+      <!-- Article Footer -->
+      <footer class="mt-12 pt-8 border-t border-border-default">
+        <div class="flex items-center justify-between flex-wrap gap-4">
+          <a href="/blog" class="text-sm text-accent-blue hover:underline no-underline">
+            ← ブログ一覧に戻る
+          </a>
+          <div class="flex gap-2">
+            <a
+              href={`https://twitter.com/intent/tweet?url=${encodeURIComponent(articleUrl)}&text=${encodeURIComponent(article.title)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="inline-flex items-center gap-1 px-3 py-1.5 text-sm border border-border-default rounded-sm text-text-secondary hover:text-text-primary hover:bg-surface-soft transition-colors no-underline"
+            >
+              X でシェア
+            </a>
+          </div>
+        </div>
+      </footer>
+    </article>
+  </body>
+</html>

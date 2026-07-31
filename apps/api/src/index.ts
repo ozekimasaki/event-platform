@@ -11,6 +11,7 @@ import { checkin } from './routes/checkin.js';
 import { support } from './routes/support.js';
 import { faq } from './routes/faq.js';
 import { chat } from './routes/chat.js';
+import { articles } from './routes/articles.js';
 import { authMiddleware, optionalAuthMiddleware } from './middleware/auth.js';
 import { CheckInCoordinator } from './durable-objects/check-in.js';
 import { EventChatRoom } from './durable-objects/chat.js';
@@ -59,6 +60,10 @@ app.route('/api', faq);
 
 // Chat history route (public)
 app.route('/api', chat);
+
+// Article routes (public GET endpoints use optionalAuth, protected ones check inside)
+app.use('/api/articles/*', optionalAuthMiddleware);
+app.route('/api/articles', articles);
 
 // Support routes (mixed: some public FAQ, some auth-required tickets)
 app.route('/api', support);

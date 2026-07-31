@@ -1,0 +1,157 @@
+---
+export const prerender = true;
+import Layout from '../../layouts/Layout.astro';
+import Card from '../../components/ui/Card.astro';
+import Badge from '../../components/ui/Badge.astro';
+import type { Article } from '@event-platform/shared';
+
+const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787';
+
+const page = Number(Astro.url.searchParams.get('page') || '1');
+const limit = 12;
+
+let articles: Article[] = [];
+let totalPages = 1;
+let total = 0;
+
+try {
+  const params = new URLSearchParams();
+  params.set('page', String(page));
+  params.set('limit', String(limit));
+
+  const res = await fetch(`${API_BASE}/api/articles?${params.toString()}`);
+  if (res.ok) {
+    const json = await res.json();
+    articles = json.data || [];
+    totalPages = json.pagination?.total_pages || 1;
+    total = json.pagination?.total || 0;
+  }
+} catch (err) {
+  console.error('Failed to fetch articles:', err);
+}
+
+const formatDate = (dateStr: string): string => {
+  return new Date(dateStr).toLocaleDateString('ja-JP', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+};
+
+const stripHtml = (html: string): string => {
+  return html.replace(/<[^>]*>/g, '').substring(0, 150);
+};
+---
+
+<Layout title="ブログ" description="最新のニュースやお知らせ">
+  <main class="mx-auto max-w-4xl px-4 py-12 lg:px-6">
+    <!-- Page Header -->
+    <div class="mb-10">
+      <h1 class="display-md text-text-primary mb-2">ブログ</h1>
+      <p class="body-lg text-text-secondary">
+        {total > 0 ? `${total}件の記事` : '最新のお知らせ'}
+      </p>
+    </div>
+
+    <!-- Articles List -->
+    {articles.length > 0 ? (
+      <div class="flex flex-col gap-8">
+        {articles.map((article, index) => (
+          <article class:list={['group', index > 0 && 'border-t border-border-default pt-8']}>
+            <a href={`/blog/${article.slug}`} class="no-underline block">
+              {article.cover_image_url && (
+                <div class="mb-4 overflow-hidden rounded-md">
+                  <img
+                    src={article.cover_image_url}
+                    alt={article.title}
+                    class="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
+                    loading="lazy"
+                  />
+                </div>
+              )}
+
+              <div class="flex flex-col gap-2">
+                <div class="flex items-center gap-3 text-sm text-text-secondary">
+                  <time datetime={article.published_at || article.created_at}>
+                    {formatDate(article.published_at || article.created_at)}
+                  </time>
+                  {article.status && (
+                    <Badge variant={article.status === 'published' ? 'success' : 'default'}>
+                      {article.status === 'published' ? '公開中' : article.status}
+                    </Badge>
+                  )}
+                </div>
+
+                <h2 class="heading-md text-text-primary group-hover:text-accent-blue transition-colors">
+                  {article.title}
+                </h2>
+
+                {article.excerpt && (
+                  <p class="body-base text-text-secondary line-clamp-2">
+                    {article.excerpt}
+                  </p>
+                )}
+
+                {!article.excerpt && article.content && (
+                  <p class="body-base text-text-secondary line-clamp-2">
+                    {stripHtml(article.content)}...
+                  </p>
+                )}
+
+                <span class="text-sm text-accent-blue font-medium mt-1">
+                  続きを読む →
+                </span>
+              </div>
+            </a>
+          </article>
+        ))}
+      </div>
+    ) : (
+      <div class="text-center py-16 border border-border-default rounded-md">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="mx-auto text-text-secondary opacity-40 mb-4">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+          <line x1="16" y1="13" x2="8" y2="13" />
+          <line x1="16" y1="17" x2="8" y2="17" />
+        </svg>
+        <p class="heading-sm text-text-secondary mb-2">記事がありません</p>
+        <p class="body-sm text-text-secondary">まだ記事が投稿されていません</p>
+      </div>
+    )}
+
+    <!-- Pagination -->
+    {totalPages > 1 && (
+      <nav class="flex items-center justify-center gap-3 mt-12" aria-label="ページネーション">
+        {page > 1 ? (
+          <a
+            href={`/blog?page=${page - 1}`}
+            class="inline-flex items-center justify-center px-4 py-2 text-sm font-medium border border-border-default rounded-sm text-text-primary hover:bg-surface-soft transition-colors no-underline min-h-[44px]"
+          >
+            ← 前へ
+          </a>
+        ) : (
+          <span class="inline-flex items-center px-4 py-2 text-sm font-medium border border-border-subtle rounded-sm text-text-secondary opacity-50 min-h-[44px]">
+            ← 前へ
+          </span>
+        )}
+
+        <span class="caption-mono text-text-secondary px-3">
+          {page} / {totalPages}
+        </span>
+
+        {page < totalPages ? (
+          <a
+            href={`/blog?page=${page + 1}`}
+            class="inline-flex items-center justify-center px-4 py-2 text-sm font-medium border border-border-default rounded-sm text-text-primary hover:bg-surface-soft transition-colors no-underline min-h-[44px]"
+          >
+            次へ →
+          </a>
+        ) : (
+          <span class="inline-flex items-center px-4 py-2 text-sm font-medium border border-border-subtle rounded-sm text-text-secondary opacity-50 min-h-[44px]">
+            次へ →
+          </span>
+        )}
+      </nav>
+    )}
+  </main>
+</Layout>

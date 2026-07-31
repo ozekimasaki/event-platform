@@ -6,7 +6,12 @@ import type {
   MessagingChannel,
   NotificationResponse,
   DeliveryStats,
+  NotificationChannelType,
 } from '@event-platform/shared';
+import {
+  enqueueNotification,
+  buildQueueMessage,
+} from './notifications.js';
 
 // ============================================
 // EMAIL JOB TYPES (shared with worker-email)
@@ -169,12 +174,21 @@ export const sendBulkNotification = async (
       queuedCount++;
     }
 
-    // Push and SMS are placeholders
-    if (channels.includes('push')) {
-      console.log(`[Push] To user ${reg.user_id}: ${subject}`);
-    }
-    if (channels.includes('sms')) {
-      console.log(`[SMS] To user ${reg.user_id}: ${subject}`);
+    // Push and SMS – enqueue for asynchronous delivery via NotificationQueue
+    if (channels.includes('push') || channels.includes('sms')) {
+      const queueChannels: NotificationChannelType[] = [];
+      if (channels.includes('push')) queueChannels.push('push');
+      if (channels.includes('sms')) queueChannels.push('sms');
+
+      const msg = buildQueueMessage(
+        reg.user_id,
+        queueChannels,
+        subject,
+        message,
+        eventId,
+      );
+      await enqueueNotification(env, msg);
+      queuedCount++;
     }
   }
 
@@ -195,23 +209,31 @@ export const sendBulkNotification = async (
 };
 
 // ============================================
-// SEND PUSH NOTIFICATION (placeholder)
+// SEND PUSH NOTIFICATION (via queue)
 // ============================================
 
 export const sendPushNotification = async (
   userId: string,
   title: string,
   body: string,
+  env: Env,
   data?: Record<string, unknown>
 ): Promise<{ success: boolean }> => {
-  // Web Push implementation placeholder
-  // In production, use Web Push API with VAPID keys
-  console.log(`[Push Notification] User: ${userId}, Title: ${title}, Body: ${body}`, data);
+  const msg = buildQueueMessage(
+    userId,
+    ['push'],
+    title,
+    body,
+    undefined,
+    undefined,
+    data,
+  );
+  await enqueueNotification(env, msg);
   return { success: true };
 };
 
 // ============================================
-// SEND SMS (placeholder with Twilio structure)
+// SEND SMS (via queue)
 // ============================================
 
 export const sendSMS = async (
@@ -219,44 +241,14 @@ export const sendSMS = async (
   message: string,
   env: Env
 ): Promise<{ success: boolean; sid?: string }> => {
-  // Twilio SMS placeholder
-  // In production, call Twilio API
-  const TWILIO_ACCOUNT_SID = (env as any).TWILIO_ACCOUNT_SID;
-  const TWILIO_AUTH_TOKEN = (env as any).TWILIO_AUTH_TOKEN;
-  const TWILIO_FROM_NUMBER = (env as any).TWILIO_FROM_NUMBER;
-
-  if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_FROM_NUMBER) {
-    console.log(`[SMS Placeholder] To: ${to}, Message: ${message}`);
-    return { success: true, sid: `placeholder-${Date.now()}` };
-  }
-
-  try {
-    const response = await fetch(
-      `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          Authorization: `Basic ${btoa(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`)}`,
-        },
-        body: new URLSearchParams({
-          To: to,
-          From: TWILIO_FROM_NUMBER,
-          Body: message,
-        }),
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Twilio API error: ${response.status}`);
-    }
-
-    const result = await response.json() as { sid: string };
-    return { success: true, sid: result.sid };
-  } catch (error) {
-    console.error('SMS send failed:', error);
-    return { success: false };
-  }
+  const msg = buildQueueMessage(
+    to,
+    ['sms'],
+    '',
+    message,
+  );
+  await enqueueNotification(env, msg);
+  return { success: true, sid: `queued-${Date.now()}` };
 };
 
 // ============================================

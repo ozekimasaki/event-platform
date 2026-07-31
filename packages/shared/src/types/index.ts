@@ -11,3 +11,4 @@ export * from './api.js';
 export * from './survey.js';
 export * from './sessions.js';
 export * from './materials.js';
+export * from './notifications.js';

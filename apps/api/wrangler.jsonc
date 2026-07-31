@@ -17,7 +17,8 @@
   "queues": {
     "producers": [
       { "queue": "email-transactional", "binding": "TRANSACTIONAL_QUEUE" },
-      { "queue": "email-marketing", "binding": "MARKETING_QUEUE" }
+      { "queue": "email-marketing", "binding": "MARKETING_QUEUE" },
+      { "queue": "notifications", "binding": "NOTIFICATION_QUEUE" }
     ]
   },
   "durable_objects": {

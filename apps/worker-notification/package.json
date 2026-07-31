@@ -11,6 +11,9 @@
     "lint": "eslint src/ --no-error-on-unmatched-pattern",
     "test": "echo \"No tests yet\""
   },
+  "dependencies": {
+    "@event-platform/shared": "workspace:*"
+  },
   "devDependencies": {
     "typescript": "^7.0.2",
     "wrangler": "^4.0.0",

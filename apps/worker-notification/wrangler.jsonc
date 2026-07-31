@@ -10,7 +10,7 @@
   "queues": {
     "consumers": [
       {
-        "queue": "notification-push",
+        "queue": "notifications",
         "max_batch_size": 20,
         "max_batch_timeout": 30
       }

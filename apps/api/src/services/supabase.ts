@@ -15,6 +15,7 @@ export interface Env {
   STORAGE: R2Bucket;
   TRANSACTIONAL_QUEUE: Queue;
   MARKETING_QUEUE: Queue;
+  NOTIFICATION_QUEUE: Queue;
   CHECK_IN_COORDINATOR: DurableObjectNamespace;
   EVENT_CHAT_ROOM: DurableObjectNamespace;
 }

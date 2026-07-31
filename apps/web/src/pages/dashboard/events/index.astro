@@ -2,12 +2,15 @@
 import DashboardLayout from '../layout.astro';
 import Button from '../../../components/ui/Button.astro';
 import Badge from '../../../components/ui/Badge.astro';
+import Card from '../../../components/ui/Card.astro';
 import type { Event } from '@event-platform/shared';
 
 const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787';
+const token = Astro.cookies.get('sb-token')?.value || '';
 
 const activeTab = Astro.url.searchParams.get('tab') || 'all';
 const page = Number(Astro.url.searchParams.get('page') || '1');
+const searchQuery = Astro.url.searchParams.get('search') || '';
 const limit = 20;
 
 const tabStatusMap: Record<string, string> = {
@@ -15,6 +18,8 @@ const tabStatusMap: Record<string, string> = {
   published: 'published',
   draft: 'draft',
   completed: 'completed',
+  cancelled: 'cancelled',
+  revenue: '',
 };
 
 const tabs = [
@@ -22,30 +27,61 @@ const tabs = [
   { key: 'published', label: '公開中' },
   { key: 'draft', label: '下書き' },
   { key: 'completed', label: '終了' },
+  { key: 'cancelled', label: 'キャンセル' },
 ];
 
-let events: Event[] = [];
+let events: (Event & { registration_count?: number; revenue?: number })[] = [];
 let totalPages = 1;
+let dashboardStats: any = null;
+let revenueData: any = null;
 
-try {
-  const params = new URLSearchParams();
-  params.set('page', String(page));
-  params.set('limit', String(limit));
-  const statusFilter = tabStatusMap[activeTab];
-  if (statusFilter) params.set('status', statusFilter);
+const headers = { 'Authorization': `Bearer ${token}` };
 
-  const res = await fetch(`${API_BASE}/api/events/my?${params.toString()}`, {
-    headers: {
-      'Authorization': `Bearer ${Astro.cookies.get('sb-token')?.value || ''}`,
-    },
-  });
-  if (res.ok) {
-    const json = await res.json();
-    events = json.data || [];
-    totalPages = json.pagination?.total_pages || 1;
+// Fetch dashboard stats (only on main view)
+if (activeTab === 'all' && !searchQuery) {
+  try {
+    const statsRes = await fetch(`${API_BASE}/api/dashboard/stats`, { headers });
+    if (statsRes.ok) {
+      const statsJson = await statsRes.json();
+      dashboardStats = statsJson.data;
+    }
+  } catch (err) {
+    console.error('Failed to fetch dashboard stats:', err);
   }
-} catch (err) {
-  console.error('Failed to fetch dashboard events:', err);
+}
+
+// Fetch revenue data (only on revenue tab)
+if (activeTab === 'revenue') {
+  try {
+    const revRes = await fetch(`${API_BASE}/api/dashboard/revenue?period=30d`, { headers });
+    if (revRes.ok) {
+      const revJson = await revRes.json();
+      revenueData = revJson.data;
+    }
+  } catch (err) {
+    console.error('Failed to fetch revenue:', err);
+  }
+}
+
+// Fetch events (not on revenue tab)
+if (activeTab !== 'revenue') {
+  try {
+    const params = new URLSearchParams();
+    params.set('page', String(page));
+    params.set('limit', String(limit));
+    const statusFilter = tabStatusMap[activeTab];
+    if (statusFilter) params.set('status', statusFilter);
+    if (searchQuery) params.set('search', searchQuery);
+
+    const res = await fetch(`${API_BASE}/api/dashboard/events/manage?${params.toString()}`, { headers });
+    if (res.ok) {
+      const json = await res.json();
+      events = json.data || [];
+      totalPages = json.pagination?.total_pages || 1;
+    }
+  } catch (err) {
+    console.error('Failed to fetch dashboard events:', err);
+  }
 }
 
 const statusVariant: Record<string, 'default' | 'success' | 'warning' | 'danger' | 'info'> = {
@@ -69,145 +105,418 @@ const formatDate = (dateStr: string): string => {
     day: 'numeric',
   });
 };
+
+const formatCurrency = (amount: number): string => {
+  return new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' }).format(amount);
+};
 ---
 
 <DashboardLayout
-  title="イベント管理"
-  breadcrumbs={[{ label: 'イベント管理' }]}
+  title={activeTab === 'revenue' ? '売上管理' : 'イベント管理'}
+  breadcrumbs={[{ label: activeTab === 'revenue' ? '売上管理' : 'イベント管理' }]}
 >
-  <!-- Header -->
-  <div class="flex items-center justify-between mb-6">
-    <h1 class="heading-lg text-text-primary">イベント管理</h1>
-    <Button variant="accent" href="/dashboard/events/new">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <line x1="12" y1="5" x2="12" y2="19" />
-        <line x1="5" y1="12" x2="19" y2="12" />
-      </svg>
-      新規イベント作成
-    </Button>
-  </div>
+  <!-- Stats Cards (only on main all tab without search) -->
+  {activeTab === 'all' && !searchQuery && dashboardStats && (
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <!-- Total Events -->
+      <Card padding="md">
+        <div class="flex items-start justify-between">
+          <div>
+            <p class="caption-mono text-text-secondary mb-1">総イベント数</p>
+            <p class="text-2xl font-bold text-text-primary">{dashboardStats.events.total}</p>
+            <p class="text-xs text-text-secondary mt-1">
+              公開中 {dashboardStats.events.published} / 下書き {dashboardStats.events.draft}
+            </p>
+          </div>
+          <div class="w-10 h-10 rounded-sm bg-accent-blue/10 flex items-center justify-center">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent-blue">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+              <line x1="16" y1="2" x2="16" y2="6" />
+              <line x1="8" y1="2" x2="8" y2="6" />
+              <line x1="3" y1="10" x2="21" y2="10" />
+            </svg>
+          </div>
+        </div>
+      </Card>
 
-  <!-- Tabs -->
-  <div class="flex gap-1 mb-6 border-b border-border-default">
-    {tabs.map((tab) => (
-      <a
-        href={`/dashboard/events?tab=${tab.key}`}
-        class:list={[
-          'px-4 py-2.5 text-sm font-medium border-b-2 transition-colors no-underline -mb-px',
-          activeTab === tab.key
-            ? 'border-accent-blue text-accent-blue'
-            : 'border-transparent text-text-secondary hover:text-text-primary hover:border-border-default',
-        ]}
-      >
-        {tab.label}
-      </a>
-    ))}
-  </div>
+      <!-- Total Registrations -->
+      <Card padding="md">
+        <div class="flex items-start justify-between">
+          <div>
+            <p class="caption-mono text-text-secondary mb-1">総参加者数</p>
+            <p class="text-2xl font-bold text-text-primary">{dashboardStats.total_registrations}</p>
+            <p class="text-xs text-text-secondary mt-1">
+              チェックイン {dashboardStats.total_attendees} 名
+            </p>
+          </div>
+          <div class="w-10 h-10 rounded-sm bg-accent-rose/10 flex items-center justify-center">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent-rose">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+            </svg>
+          </div>
+        </div>
+      </Card>
 
-  <!-- Events Table -->
-  {events.length > 0 ? (
-    <div class="border border-border-default rounded-md overflow-hidden">
-      <table class="w-full text-sm">
-        <thead>
-          <tr class="bg-surface-soft border-b border-border-default">
-            <th class="text-left px-4 py-3 font-medium text-text-secondary">イベント名</th>
-            <th class="text-left px-4 py-3 font-medium text-text-secondary hidden md:table-cell">日時</th>
-            <th class="text-left px-4 py-3 font-medium text-text-secondary">ステータス</th>
-            <th class="text-right px-4 py-3 font-medium text-text-secondary">操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          {events.map((event) => (
-            <tr class="border-b border-border-default last:border-b-0 hover:bg-surface-soft transition-colors">
-              <td class="px-4 py-3">
-                <div class="flex flex-col gap-0.5">
-                  <a
-                    href={`/dashboard/events/${event.id}/edit`}
-                    class="font-medium text-text-primary hover:text-accent-blue transition-colors no-underline"
-                  >
-                    {event.title}
-                  </a>
-                  <span class="text-text-secondary text-xs">/{event.slug}</span>
-                </div>
-              </td>
-              <td class="px-4 py-3 text-text-secondary hidden md:table-cell">
-                {formatDate(event.start_at)}
-              </td>
-              <td class="px-4 py-3">
-                <Badge variant={statusVariant[event.status] ?? 'default'}>
-                  {statusLabel[event.status] ?? event.status}
-                </Badge>
-              </td>
-              <td class="px-4 py-3">
-                <div class="flex items-center justify-end gap-2">
-                  <a
-                    href={`/events/${event.slug}`}
-                    class="inline-flex items-center justify-center w-8 h-8 rounded-sm text-text-secondary hover:text-text-primary hover:bg-surface-medium transition-colors no-underline"
-                    title="詳細表示"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                      <circle cx="12" cy="12" r="3" />
-                    </svg>
-                  </a>
-                  <a
-                    href={`/dashboard/events/${event.id}/edit`}
-                    class="inline-flex items-center justify-center w-8 h-8 rounded-sm text-text-secondary hover:text-accent-blue hover:bg-surface-medium transition-colors no-underline"
-                    title="編集"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                    </svg>
-                  </a>
-                  <button
-                    type="button"
-                    class="inline-flex items-center justify-center w-8 h-8 rounded-sm text-text-secondary hover:text-danger hover:bg-surface-medium transition-colors"
-                    title="削除"
-                    data-event-id={event.id}
-                    data-event-title={event.title}
-                    onclick="handleDeleteEvent(this)"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <polyline points="3 6 5 6 21 6" />
-                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                    </svg>
-                  </button>
-                </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  ) : (
-    <div class="text-center py-16 border border-border-default rounded-md">
-      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="mx-auto text-text-secondary opacity-40 mb-4">
-        <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-        <line x1="16" y1="2" x2="16" y2="6" />
-        <line x1="8" y1="2" x2="8" y2="6" />
-        <line x1="3" y1="10" x2="21" y2="10" />
-      </svg>
-      <p class="heading-sm text-text-secondary mb-2">イベントがありません</p>
-      <p class="body-sm text-text-secondary mb-4">新しいイベントを作成して始めましょう</p>
-      <Button variant="accent" href="/dashboard/events/new">新規イベント作成</Button>
+      <!-- Total Revenue -->
+      <Card padding="md">
+        <div class="flex items-start justify-between">
+          <div>
+            <p class="caption-mono text-text-secondary mb-1">総売上</p>
+            <p class="text-2xl font-bold text-text-primary">{formatCurrency(dashboardStats.total_revenue)}</p>
+            <p class="text-xs text-text-secondary mt-1">
+              今月 +{dashboardStats.monthly_registrations} 登録
+            </p>
+          </div>
+          <div class="w-10 h-10 rounded-sm bg-accent-gold/10 flex items-center justify-center">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent-gold">
+              <line x1="12" y1="1" x2="12" y2="23" />
+              <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+            </svg>
+          </div>
+        </div>
+      </Card>
+
+      <!-- Monthly Registrations -->
+      <Card padding="md">
+        <div class="flex items-start justify-between">
+          <div>
+            <p class="caption-mono text-text-secondary mb-1">今月の新規登録</p>
+            <p class="text-2xl font-bold text-text-primary">{dashboardStats.monthly_registrations}</p>
+            <p class="text-xs text-text-secondary mt-1">
+              出席率 {dashboardStats.total_registrations > 0 ? Math.round((dashboardStats.total_attendees / dashboardStats.total_registrations) * 100) : 0}%
+            </p>
+          </div>
+          <div class="w-10 h-10 rounded-sm bg-[color-mix(in_srgb,var(--color-success)_15%,transparent)] flex items-center justify-center">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-success">
+              <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+              <polyline points="17 6 23 6 23 12" />
+            </svg>
+          </div>
+        </div>
+      </Card>
     </div>
   )}
 
-  <!-- Pagination -->
-  {totalPages > 1 && (
-    <div class="flex items-center justify-center gap-3 mt-6">
-      {page > 1 && (
-        <a href={`/dashboard/events?tab=${activeTab}&page=${page - 1}`} class="px-3 py-1.5 text-sm border border-border-default rounded-sm text-text-primary hover:bg-surface-soft transition-colors no-underline">
-          ← 前へ
-        </a>
+  <!-- Revenue Tab Content -->
+  {activeTab === 'revenue' && (
+    <div class="flex flex-col gap-6">
+      <!-- Revenue Summary Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Card padding="md">
+          <p class="caption-mono text-text-secondary mb-1">総売上（30日間）</p>
+          <p class="text-2xl font-bold text-text-primary">{formatCurrency(revenueData?.total ?? 0)}</p>
+        </Card>
+        <Card padding="md">
+          <p class="caption-mono text-text-secondary mb-1">イベント別売上</p>
+          <p class="text-2xl font-bold text-text-primary">{revenueData?.by_event?.length ?? 0} イベント</p>
+        </Card>
+        <Card padding="md">
+          <p class="caption-mono text-text-secondary mb-1">期間</p>
+          <p class="text-2xl font-bold text-text-primary">過去30日</p>
+        </Card>
+      </div>
+
+      <!-- Revenue by Event -->
+      {revenueData?.by_event?.length > 0 && (
+        <Card padding="md">
+          <h3 class="heading-sm text-text-primary mb-4">イベント別売上</h3>
+          <div class="flex flex-col gap-3">
+            {revenueData.by_event.map((item: any) => {
+              const maxAmount = Math.max(...revenueData.by_event.map((e: any) => e.amount), 1);
+              const widthPct = Math.round((item.amount / maxAmount) * 100);
+              return (
+                <div class="flex flex-col gap-1">
+                  <div class="flex items-center justify-between text-sm">
+                    <span class="text-text-primary font-medium truncate mr-4">{item.event_title}</span>
+                    <span class="text-text-primary font-bold whitespace-nowrap">{formatCurrency(item.amount)}</span>
+                  </div>
+                  <div class="w-full h-2 bg-surface-medium rounded-full overflow-hidden">
+                    <div class="h-full bg-accent-blue rounded-full transition-all duration-300" style={`width: ${widthPct}%`} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
       )}
-      <span class="caption-mono text-text-secondary">{page} / {totalPages}</span>
-      {page < totalPages && (
-        <a href={`/dashboard/events?tab=${activeTab}&page=${page + 1}`} class="px-3 py-1.5 text-sm border border-border-default rounded-sm text-text-primary hover:bg-surface-soft transition-colors no-underline">
-          次へ →
-        </a>
+
+      {/* Daily Revenue Chart (CSS bar chart) */}
+      {revenueData?.by_period?.length > 0 && (
+        <Card padding="md">
+          <h3 class="heading-sm text-text-primary mb-4">日別売上推移</h3>
+          <div class="flex items-end gap-1 h-40">
+            {revenueData.by_period.slice(-14).map((day: any) => {
+              const maxDaily = Math.max(...revenueData.by_period.slice(-14).map((d: any) => d.amount), 1);
+              const heightPct = Math.max(Math.round((day.amount / maxDaily) * 100), 2);
+              return (
+                <div class="flex-1 flex flex-col items-center gap-1" title={`${day.date}: ${formatCurrency(day.amount)}`}>
+                  <div class="w-full bg-accent-blue/80 rounded-t-sm hover:bg-accent-blue transition-colors" style={`height: ${heightPct}%`} />
+                  <span class="text-[10px] text-text-secondary rotate-[-45deg] origin-left whitespace-nowrap hidden lg:block">{day.date.substring(5)}</span>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
       )}
+
+      {!revenueData && (
+        <Card padding="lg">
+          <p class="text-text-secondary text-center">売上データを読み込めませんでした</p>
+        </Card>
+      )}
+    </div>
+  )}
+
+  <!-- Event Management Tab Content -->
+  {activeTab !== 'revenue' && (
+    <>
+      <!-- Header -->
+      <div class="flex items-center justify-between mb-6 flex-wrap gap-4">
+        <h1 class="heading-lg text-text-primary">イベント管理</h1>
+        <Button variant="accent" href="/dashboard/events/new">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+          新規イベント作成
+        </Button>
+      </div>
+
+      <!-- Search Bar -->
+      <div class="mb-4">
+        <form method="get" action="/dashboard/events" class="flex gap-2">
+          {activeTab !== 'all' && <input type="hidden" name="tab" value={activeTab} />}
+          <div class="relative flex-1 max-w-md">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary">
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <input
+              type="text"
+              name="search"
+              value={searchQuery}
+              placeholder="イベント名で検索..."
+              class="w-full pl-10 pr-4 py-2 text-sm text-text-primary bg-surface-base border border-border-default rounded-sm min-h-[44px] focus:outline-2 focus:outline-accent-blue focus:border-accent-blue"
+            />
+          </div>
+          <Button type="submit" variant="secondary" size="sm">検索</Button>
+          {searchQuery && (
+            <a href="/dashboard/events{activeTab !== 'all' ? `?tab=${activeTab}` : ''}" class="text-sm text-text-secondary hover:text-text-primary transition-colors no-underline self-center">
+              クリア
+            </a>
+          )}
+        </form>
+      </div>
+
+      <!-- Tabs -->
+      <div class="flex gap-1 mb-6 border-b border-border-default overflow-x-auto">
+        {tabs.map((tab) => (
+          <a
+            href={`/dashboard/events?tab=${tab.key}${searchQuery ? `&search=${encodeURIComponent(searchQuery)}` : ''}`}
+            class:list={[
+              'px-4 py-2.5 text-sm font-medium border-b-2 transition-colors no-underline -mb-px whitespace-nowrap',
+              activeTab === tab.key
+                ? 'border-accent-blue text-accent-blue'
+                : 'border-transparent text-text-secondary hover:text-text-primary hover:border-border-default',
+            ]}
+          >
+            {tab.label}
+          </a>
+        ))}
+      </div>
+
+      <!-- Events Table -->
+      {events.length > 0 ? (
+        <div class="border border-border-default rounded-md overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="bg-surface-soft border-b border-border-default">
+                  <th class="text-left px-4 py-3 font-medium text-text-secondary">イベント名</th>
+                  <th class="text-left px-4 py-3 font-medium text-text-secondary hidden md:table-cell">日時</th>
+                  <th class="text-left px-4 py-3 font-medium text-text-secondary">ステータス</th>
+                  <th class="text-right px-4 py-3 font-medium text-text-secondary hidden sm:table-cell">参加者</th>
+                  <th class="text-right px-4 py-3 font-medium text-text-secondary hidden lg:table-cell">売上</th>
+                  <th class="text-right px-4 py-3 font-medium text-text-secondary">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {events.map((event) => (
+                  <tr class="border-b border-border-default last:border-b-0 hover:bg-surface-soft transition-colors">
+                    <td class="px-4 py-3">
+                      <div class="flex flex-col gap-0.5">
+                        <a
+                          href={`/dashboard/events/${event.id}/edit`}
+                          class="font-medium text-text-primary hover:text-accent-blue transition-colors no-underline"
+                        >
+                          {event.title}
+                        </a>
+                        <span class="text-text-secondary text-xs">/{event.slug}</span>
+                      </div>
+                    </td>
+                    <td class="px-4 py-3 text-text-secondary hidden md:table-cell">
+                      {formatDate(event.start_at)}
+                    </td>
+                    <td class="px-4 py-3">
+                      <Badge variant={statusVariant[event.status] ?? 'default'}>
+                        {statusLabel[event.status] ?? event.status}
+                      </Badge>
+                    </td>
+                    <td class="px-4 py-3 text-right text-text-secondary hidden sm:table-cell">
+                      {event.registration_count ?? 0} 名
+                    </td>
+                    <td class="px-4 py-3 text-right text-text-primary font-medium hidden lg:table-cell">
+                      {formatCurrency(event.revenue ?? 0)}
+                    </td>
+                    <td class="px-4 py-3">
+                      <div class="flex items-center justify-end gap-1">
+                        <a
+                          href={`/dashboard/events/${event.id}/edit`}
+                          class="inline-flex items-center justify-center w-8 h-8 min-w-[36px] min-h-[36px] rounded-sm text-text-secondary hover:text-accent-blue hover:bg-surface-medium transition-colors no-underline"
+                          title="編集"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                          </svg>
+                        </a>
+                        <a
+                          href={`/dashboard/events/${event.id}/checkin`}
+                          class="inline-flex items-center justify-center w-8 h-8 min-w-[36px] min-h-[36px] rounded-sm text-text-secondary hover:text-accent-blue hover:bg-surface-medium transition-colors no-underline"
+                          title="チェックイン"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        </a>
+                        <a
+                          href={`/events/${event.slug}`}
+                          class="inline-flex items-center justify-center w-8 h-8 min-w-[36px] min-h-[36px] rounded-sm text-text-secondary hover:text-text-primary hover:bg-surface-medium transition-colors no-underline"
+                          title="詳細表示"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                            <circle cx="12" cy="12" r="3" />
+                          </svg>
+                        </a>
+                        <button
+                          type="button"
+                          class="inline-flex items-center justify-center w-8 h-8 min-w-[36px] min-h-[36px] rounded-sm text-text-secondary hover:text-danger hover:bg-surface-medium transition-colors"
+                          title="削除"
+                          data-event-id={event.id}
+                          data-event-title={event.title}
+                          onclick="handleDeleteEvent(this)"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="3 6 5 6 21 6" />
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                          </svg>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+        <div class="text-center py-16 border border-border-default rounded-md">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="mx-auto text-text-secondary opacity-40 mb-4">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+            <line x1="16" y1="2" x2="16" y2="6" />
+            <line x1="8" y1="2" x2="8" y2="6" />
+            <line x1="3" y1="10" x2="21" y2="10" />
+          </svg>
+          <p class="heading-sm text-text-secondary mb-2">
+            {searchQuery ? '検索結果がありません' : 'イベントがありません'}
+          </p>
+          <p class="body-sm text-text-secondary mb-4">
+            {searchQuery ? '別のキーワードで検索してみてください' : '新しいイベントを作成して始めましょう'}
+          </p>
+          {!searchQuery && (
+            <Button variant="accent" href="/dashboard/events/new">新規イベント作成</Button>
+          )}
+        </div>
+      )}
+
+      <!-- Pagination -->
+      {totalPages > 1 && (
+        <div class="flex items-center justify-center gap-3 mt-6">
+          {page > 1 && (
+            <a href={`/dashboard/events?tab=${activeTab}${searchQuery ? `&search=${encodeURIComponent(searchQuery)}` : ''}&page=${page - 1}`} class="px-3 py-1.5 text-sm border border-border-default rounded-sm text-text-primary hover:bg-surface-soft transition-colors no-underline min-h-[36px] inline-flex items-center">
+              ← 前へ
+            </a>
+          )}
+          <span class="caption-mono text-text-secondary">{page} / {totalPages}</span>
+          {page < totalPages && (
+            <a href={`/dashboard/events?tab=${activeTab}${searchQuery ? `&search=${encodeURIComponent(searchQuery)}` : ''}&page=${page + 1}`} class="px-3 py-1.5 text-sm border border-border-default rounded-sm text-text-primary hover:bg-surface-soft transition-colors no-underline min-h-[36px] inline-flex items-center">
+              次へ →
+            </a>
+          )}
+        </div>
+      )}
+
+      <!-- Recent Activity (only on main view) -->
+      {activeTab === 'all' && !searchQuery && dashboardStats?.recent_activity?.length > 0 && (
+        <div class="mt-8">
+          <h2 class="heading-sm text-text-primary mb-4">最近のアクティビティ</h2>
+          <Card padding="none">
+            <div class="divide-y divide-border-default">
+              {dashboardStats.recent_activity.map((activity: any) => (
+                <div class="flex items-center gap-3 px-4 py-3">
+                  <div class:list={[
+                    'w-8 h-8 rounded-full flex items-center justify-center shrink-0',
+                    activity.type === 'checkin'
+                      ? 'bg-[color-mix(in_srgb,var(--color-success)_15%,transparent)]'
+                      : 'bg-[color-mix(in_srgb,var(--accent-blue)_15%,transparent)]',
+                  ]}>
+                    {activity.type === 'checkin' ? (
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-success">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    ) : (
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent-blue">
+                        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                        <circle cx="8.5" cy="7" r="4" />
+                        <line x1="20" y1="8" x2="20" y2="14" />
+                        <line x1="23" y1="11" x2="17" y2="11" />
+                      </svg>
+                    )}
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <p class="text-sm text-text-primary truncate">
+                      <span class="font-medium">{activity.event_title}</span>
+                      <span class="text-text-secondary">
+                        {activity.type === 'checkin' ? ' にチェックイン' : ' に新規登録'}
+                      </span>
+                    </p>
+                  </div>
+                  <time class="text-xs text-text-secondary whitespace-nowrap">
+                    {new Date(activity.created_at).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' })}
+                  </time>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+      )}
+    </>
+  )}
+
+  <!-- Quick Actions (only on main view) -->
+  {activeTab === 'all' && !searchQuery && (
+    <div class="mt-8 flex flex-wrap gap-3">
+      <Button variant="accent" href="/dashboard/events/new">
+        新規イベント作成
+      </Button>
+      <Button variant="secondary" href="/dashboard/events?tab=published">
+        参加者管理
+      </Button>
+      <Button variant="secondary" href="/dashboard/events?tab=revenue">
+        売上確認
+      </Button>
     </div>
   )}
 </DashboardLayout>

@@ -3,17 +3,21 @@ import DashboardLayout from '../../../layout.astro';
 import Button from '../../../../components/ui/Button.astro';
 import Input from '../../../../components/ui/Input.astro';
 import Badge from '../../../../components/ui/Badge.astro';
+import Card from '../../../../components/ui/Card.astro';
 import Editor from '../../../../components/Editor';
 import type { Event } from '@event-platform/shared';
 
 const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8787';
 const { id } = Astro.params;
+const activeTab = Astro.url.searchParams.get('tab') || 'overview';
+const token = Astro.cookies.get('sb-token')?.value || '';
 
 let event: Event | null = null;
 let error = '';
+let eventStats: any = null;
+let paymentsData: any = null;
 
 try {
-  const token = Astro.cookies.get('sb-token')?.value || '';
   const res = await fetch(`${API_BASE}/api/events/by-id/${id}`, {
     headers: { 'Authorization': `Bearer ${token}` },
   });
@@ -28,9 +32,39 @@ try {
   error = 'ネットワークエラーが発生しました';
 }
 
+// Fetch event stats
+if (event) {
+  try {
+    const statsRes = await fetch(`${API_BASE}/api/dashboard/events/${id}/stats`, {
+      headers: { 'Authorization': `Bearer ${token}` },
+    });
+    if (statsRes.ok) {
+      const statsJson = await statsRes.json();
+      eventStats = statsJson.data;
+    }
+  } catch (err) {
+    console.error('Failed to fetch event stats:', err);
+  }
+}
+
+// Fetch payments data for payments tab
+if (event && activeTab === 'payments') {
+  try {
+    const payRes = await fetch(`${API_BASE}/api/dashboard/events/${id}/payments`, {
+      headers: { 'Authorization': `Bearer ${token}` },
+    });
+    if (payRes.ok) {
+      const payJson = await payRes.json();
+      paymentsData = payJson.data;
+    }
+  } catch (err) {
+    console.error('Failed to fetch payments:', err);
+  }
+}
+
 const breadcrumbs = [
   { label: 'イベント管理', href: '/dashboard/events' },
-  { label: event ? event.title : '編集' },
+  { label: event ? event.title : '詳細' },
 ];
 
 const statusVariant: Record<string, 'default' | 'success' | 'warning' | 'danger' | 'info'> = {
@@ -47,193 +81,495 @@ const statusLabel: Record<string, string> = {
   completed: '終了',
 };
 
-// Convert ISO datetime to datetime-local format
+const subTabs = [
+  { key: 'overview', label: '概要' },
+  { key: 'edit', label: '編集' },
+  { key: 'checkin', label: 'チェックイン' },
+  { key: 'payments', label: '決済' },
+];
+
 const toDatetimeLocal = (iso: string): string => {
   const d = new Date(iso);
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
+
+const formatCurrency = (amount: number): string => {
+  return new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' }).format(amount);
+};
+
+const formatDate = (dateStr: string): string => {
+  return new Date(dateStr).toLocaleDateString('ja-JP', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
 ---
 
-<DashboardLayout title={event ? `編集: ${event.title}` : 'イベント編集'} {breadcrumbs}>
-  <div class="max-w-3xl">
-    {event ? (
-      <>
-        <!-- Header -->
-        <div class="flex items-center justify-between mb-6">
-          <div class="flex items-center gap-3">
-            <h1 class="heading-lg text-text-primary">イベント編集</h1>
-            <Badge variant={statusVariant[event.status] ?? 'default'}>
-              {statusLabel[event.status] ?? event.status}
-            </Badge>
-          </div>
-          <a
-            href={`/events/${event.slug}`}
-            class="text-sm text-text-secondary hover:text-text-primary transition-colors no-underline"
-            target="_blank"
-          >
-            ページを表示 →
-          </a>
+<DashboardLayout title={event ? `${activeTab === 'edit' ? '編集' : activeTab === 'payments' ? '決済管理' : activeTab === 'checkin' ? 'チェックイン' : '概要'}: ${event.title}` : 'イベント詳細'} {breadcrumbs}>
+  {event ? (
+    <>
+      <!-- Event Header -->
+      <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
+        <div class="flex items-center gap-3">
+          <h1 class="heading-lg text-text-primary">{event.title}</h1>
+          <Badge variant={statusVariant[event.status] ?? 'default'}>
+            {statusLabel[event.status] ?? event.status}
+          </Badge>
         </div>
+        <a
+          href={`/events/${event.slug}`}
+          class="text-sm text-text-secondary hover:text-text-primary transition-colors no-underline"
+          target="_blank"
+        >
+          公開ページ →
+        </a>
+      </div>
 
-        {Astro.url.searchParams.get('created') === '1' && (
-          <div class="mb-4 p-3 bg-[color-mix(in_srgb,var(--color-success)_15%,transparent)] text-success rounded-sm text-sm border border-[color-mix(in_srgb,var(--color-success)_30%,transparent)]">
-            イベントが作成されました
-          </div>
-        )}
+      <!-- Event meta info -->
+      <p class="text-sm text-text-secondary mb-6">
+        {formatDate(event.start_at)} — {formatDate(event.end_at)}
+        {event.venue_name && ` | ${event.venue_name}`}
+      </p>
 
-        <form id="event-form" class="flex flex-col gap-6">
-          <!-- Title -->
-          <Input
-            label="イベント名 *"
-            name="title"
-            id="title"
-            value={event.title}
-            placeholder="イベント名を入力してください"
-            required
-          />
+      <!-- Sub Navigation Tabs -->
+      <div class="flex gap-1 mb-6 border-b border-border-default overflow-x-auto">
+        {subTabs.map((tab) => (
+          <a
+            href={`/dashboard/events/${event.id}/edit?tab=${tab.key}`}
+            class:list={[
+              'px-4 py-2.5 text-sm font-medium border-b-2 transition-colors no-underline -mb-px whitespace-nowrap',
+              activeTab === tab.key
+                ? 'border-accent-blue text-accent-blue'
+                : 'border-transparent text-text-secondary hover:text-text-primary hover:border-border-default',
+            ]}
+          >
+            {tab.label}
+          </a>
+        ))}
+      </div>
 
-          <!-- Slug -->
-          <div class="flex flex-col gap-1.5">
-            <label for="slug" class="text-sm font-medium text-text-primary">スラッグ (URL)</label>
-            <div class="flex items-center gap-2">
-              <span class="text-text-secondary text-sm">/events/</span>
-              <input
-                type="text"
-                id="slug"
-                name="slug"
-                value={event.slug}
-                class="w-full px-3 py-2.5 text-base text-text-primary bg-surface-base border border-border-default rounded-sm min-h-[44px] focus:outline-2 focus:outline-accent-blue focus:border-accent-blue"
-              />
+      <!-- Overview Tab -->
+      {activeTab === 'overview' && (
+        <div class="flex flex-col gap-6">
+          <!-- Stats Row -->
+          {eventStats && (
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <Card padding="md">
+                <p class="caption-mono text-text-secondary mb-1">登録者数</p>
+                <p class="text-2xl font-bold text-text-primary">{eventStats.registrations.total}</p>
+                <p class="text-xs text-text-secondary mt-1">
+                  確認済み {eventStats.registrations.confirmed}
+                </p>
+              </Card>
+              <Card padding="md">
+                <p class="caption-mono text-text-secondary mb-1">チェックイン済み</p>
+                <p class="text-2xl font-bold text-text-primary">{eventStats.registrations.checked_in}</p>
+                <p class="text-xs text-text-secondary mt-1">
+                  出席率 {eventStats.checkin_rate}%
+                </p>
+              </Card>
+              <Card padding="md">
+                <p class="caption-mono text-text-secondary mb-1">総売上</p>
+                <p class="text-2xl font-bold text-text-primary">{formatCurrency(eventStats.revenue.succeeded)}</p>
+                <p class="text-xs text-text-secondary mt-1">
+                  返金済み {formatCurrency(eventStats.revenue.refunded)}
+                </p>
+              </Card>
+              <Card padding="md">
+                <p class="caption-mono text-text-secondary mb-1">出席率</p>
+                <p class="text-2xl font-bold text-text-primary">{eventStats.checkin_rate}%</p>
+                <div class="w-full h-2 bg-surface-medium rounded-full mt-2 overflow-hidden">
+                  <div class="h-full bg-accent-blue rounded-full" style={`width: ${eventStats.checkin_rate}%`} />
+                </div>
+              </Card>
             </div>
-          </div>
+          )}
 
-          <!-- Status (only for edit) -->
-          <div class="flex flex-col gap-1.5">
-            <label for="status" class="text-sm font-medium text-text-primary">ステータス</label>
-            <select
-              id="status"
-              name="status"
-              class="w-full px-3 py-2.5 text-base text-text-primary bg-surface-base border border-border-default rounded-sm min-h-[44px] focus:outline-2 focus:outline-accent-blue focus:border-accent-blue"
-            >
-              <option value="draft" selected={event.status === 'draft'}>下書き</option>
-              <option value="published" selected={event.status === 'published'}>公開中</option>
-              <option value="completed" selected={event.status === 'completed'}>終了</option>
-            </select>
-          </div>
-
-          <!-- Description (Editor) -->
-          <div class="flex flex-col gap-1.5">
-            <label class="text-sm font-medium text-text-primary">説明 *</label>
-            <Editor client:load content={event.description} onChange="" />
-            <input type="hidden" name="description" id="description" value={event.description} />
-          </div>
-
-          <!-- Date/Time -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div class="flex flex-col gap-1.5">
-              <label for="start_at" class="text-sm font-medium text-text-primary">開始日時 *</label>
-              <input
-                type="datetime-local"
-                id="start_at"
-                name="start_at"
-                value={toDatetimeLocal(event.start_at)}
-                required
-                class="w-full px-3 py-2.5 text-base text-text-primary bg-surface-base border border-border-default rounded-sm min-h-[44px] focus:outline-2 focus:outline-accent-blue focus:border-accent-blue"
-              />
+          <!-- Quick Links -->
+          <Card padding="md">
+            <h3 class="heading-sm text-text-primary mb-4">クイックアクセス</h3>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <a
+                href={`/dashboard/events/${event.id}/edit?tab=checkin`}
+                class="flex items-center gap-3 p-3 rounded-sm border border-border-default hover:bg-surface-soft transition-colors no-underline"
+              >
+                <div class="w-10 h-10 rounded-sm bg-accent-blue/10 flex items-center justify-center">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent-blue">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                </div>
+                <div>
+                  <p class="text-sm font-medium text-text-primary">チェックイン管理</p>
+                  <p class="text-xs text-text-secondary">QRスキャン・手動チェックイン</p>
+                </div>
+              </a>
+              <a
+                href={`/dashboard/events/${event.id}/edit?tab=payments`}
+                class="flex items-center gap-3 p-3 rounded-sm border border-border-default hover:bg-surface-soft transition-colors no-underline"
+              >
+                <div class="w-10 h-10 rounded-sm bg-accent-gold/10 flex items-center justify-center">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent-gold">
+                    <line x1="12" y1="1" x2="12" y2="23" />
+                    <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                  </svg>
+                </div>
+                <div>
+                  <p class="text-sm font-medium text-text-primary">決済管理</p>
+                  <p class="text-xs text-text-secondary">売上・返金処理</p>
+                </div>
+              </a>
+              <a
+                href={`/dashboard/events/${event.id}/edit?tab=edit`}
+                class="flex items-center gap-3 p-3 rounded-sm border border-border-default hover:bg-surface-soft transition-colors no-underline"
+              >
+                <div class="w-10 h-10 rounded-sm bg-accent-rose/10 flex items-center justify-center">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-accent-rose">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                  </svg>
+                </div>
+                <div>
+                  <p class="text-sm font-medium text-text-primary">イベント編集</p>
+                  <p class="text-xs text-text-secondary">内容の修正・ステータス変更</p>
+                </div>
+              </a>
             </div>
-            <div class="flex flex-col gap-1.5">
-              <label for="end_at" class="text-sm font-medium text-text-primary">終了日時 *</label>
-              <input
-                type="datetime-local"
-                id="end_at"
-                name="end_at"
-                value={toDatetimeLocal(event.end_at)}
-                required
-                class="w-full px-3 py-2.5 text-base text-text-primary bg-surface-base border border-border-default rounded-sm min-h-[44px] focus:outline-2 focus:outline-accent-blue focus:border-accent-blue"
-              />
-            </div>
-          </div>
+          </Card>
 
-          <!-- Venue -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <!-- Ticket Type Breakdown -->
+          {eventStats?.tickets_by_type?.length > 0 && (
+            <Card padding="md">
+              <h3 class="heading-sm text-text-primary mb-4">チケット別登録者数</h3>
+              <div class="flex flex-col gap-2">
+                {eventStats.tickets_by_type.map((ticket: any) => {
+                  const maxCount = Math.max(...eventStats.tickets_by_type.map((t: any) => t.count), 1);
+                  const widthPct = Math.round((ticket.count / maxCount) * 100);
+                  return (
+                    <div class="flex items-center gap-3">
+                      <span class="text-sm text-text-secondary w-24 truncate">{ticket.ticket_id.substring(0, 8)}...</span>
+                      <div class="flex-1 h-6 bg-surface-medium rounded-sm overflow-hidden">
+                        <div class="h-full bg-accent-blue/60 rounded-sm flex items-center px-2" style={`width: ${widthPct}%`}>
+                          <span class="text-xs text-text-primary font-medium">{ticket.count} 名</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          )}
+        </div>
+      )}
+
+      <!-- Edit Tab -->
+      {activeTab === 'edit' && (
+        <div class="max-w-3xl">
+          {Astro.url.searchParams.get('created') === '1' && (
+            <div class="mb-4 p-3 bg-[color-mix(in_srgb,var(--color-success)_15%,transparent)] text-success rounded-sm text-sm border border-[color-mix(in_srgb,var(--color-success)_30%,transparent)]">
+              イベントが作成されました
+            </div>
+          )}
+
+          <form id="event-form" class="flex flex-col gap-6">
+            <!-- Title -->
             <Input
-              label="会場名"
-              name="venue_name"
-              id="venue_name"
-              value={event.venue_name || ''}
-              placeholder="例: 渋谷スクランブルスクエア"
+              label="イベント名 *"
+              name="title"
+              id="title"
+              value={event.title}
+              placeholder="イベント名を入力してください"
+              required
             />
-            <Input
-              label="会場住所"
-              name="venue_address"
-              id="venue_address"
-              value={event.venue_address || ''}
-              placeholder="例: 東京都渋谷区渋谷2-24-12"
-            />
-          </div>
 
-          <!-- Capacity & Pricing -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <!-- Slug -->
             <div class="flex flex-col gap-1.5">
-              <label for="capacity" class="text-sm font-medium text-text-primary">定員</label>
-              <input
-                type="number"
-                id="capacity"
-                name="capacity"
-                min="1"
-                value={event.capacity ?? ''}
-                placeholder="例: 100"
-                class="w-full px-3 py-2.5 text-base text-text-primary bg-surface-base border border-border-default rounded-sm min-h-[44px] focus:outline-2 focus:outline-accent-blue focus:border-accent-blue"
-              />
+              <label for="slug" class="text-sm font-medium text-text-primary">スラッグ (URL)</label>
+              <div class="flex items-center gap-2">
+                <span class="text-text-secondary text-sm">/events/</span>
+                <input
+                  type="text"
+                  id="slug"
+                  name="slug"
+                  value={event.slug}
+                  class="w-full px-3 py-2.5 text-base text-text-primary bg-surface-base border border-border-default rounded-sm min-h-[44px] focus:outline-2 focus:outline-accent-blue focus:border-accent-blue"
+                />
+              </div>
             </div>
+
+            <!-- Status -->
             <div class="flex flex-col gap-1.5">
-              <label for="pricing_type" class="text-sm font-medium text-text-primary">料金タイプ *</label>
+              <label for="status" class="text-sm font-medium text-text-primary">ステータス</label>
               <select
-                id="pricing_type"
-                name="pricing_type"
-                required
+                id="status"
+                name="status"
                 class="w-full px-3 py-2.5 text-base text-text-primary bg-surface-base border border-border-default rounded-sm min-h-[44px] focus:outline-2 focus:outline-accent-blue focus:border-accent-blue"
               >
-                <option value="free" selected={event.pricing_type === 'free'}>無料</option>
-                <option value="paid" selected={event.pricing_type === 'paid'}>有料</option>
-                <option value="donation" selected={event.pricing_type === 'donation'}>投げ銭制</option>
+                <option value="draft" selected={event.status === 'draft'}>下書き</option>
+                <option value="published" selected={event.status === 'published'}>公開中</option>
+                <option value="completed" selected={event.status === 'completed'}>終了</option>
               </select>
             </div>
+
+            <!-- Description (Editor) -->
+            <div class="flex flex-col gap-1.5">
+              <label class="text-sm font-medium text-text-primary">説明 *</label>
+              <Editor client:load content={event.description} onChange="" />
+              <input type="hidden" name="description" id="description" value={event.description} />
+            </div>
+
+            <!-- Date/Time -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div class="flex flex-col gap-1.5">
+                <label for="start_at" class="text-sm font-medium text-text-primary">開始日時 *</label>
+                <input
+                  type="datetime-local"
+                  id="start_at"
+                  name="start_at"
+                  value={toDatetimeLocal(event.start_at)}
+                  required
+                  class="w-full px-3 py-2.5 text-base text-text-primary bg-surface-base border border-border-default rounded-sm min-h-[44px] focus:outline-2 focus:outline-accent-blue focus:border-accent-blue"
+                />
+              </div>
+              <div class="flex flex-col gap-1.5">
+                <label for="end_at" class="text-sm font-medium text-text-primary">終了日時 *</label>
+                <input
+                  type="datetime-local"
+                  id="end_at"
+                  name="end_at"
+                  value={toDatetimeLocal(event.end_at)}
+                  required
+                  class="w-full px-3 py-2.5 text-base text-text-primary bg-surface-base border border-border-default rounded-sm min-h-[44px] focus:outline-2 focus:outline-accent-blue focus:border-accent-blue"
+                />
+              </div>
+            </div>
+
+            <!-- Venue -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Input
+                label="会場名"
+                name="venue_name"
+                id="venue_name"
+                value={event.venue_name || ''}
+                placeholder="例: 渋谷スクランブルスクエア"
+              />
+              <Input
+                label="会場住所"
+                name="venue_address"
+                id="venue_address"
+                value={event.venue_address || ''}
+                placeholder="例: 東京都渋谷区渋谷2-24-12"
+              />
+            </div>
+
+            <!-- Capacity & Pricing -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div class="flex flex-col gap-1.5">
+                <label for="capacity" class="text-sm font-medium text-text-primary">定員</label>
+                <input
+                  type="number"
+                  id="capacity"
+                  name="capacity"
+                  min="1"
+                  value={event.capacity ?? ''}
+                  placeholder="例: 100"
+                  class="w-full px-3 py-2.5 text-base text-text-primary bg-surface-base border border-border-default rounded-sm min-h-[44px] focus:outline-2 focus:outline-accent-blue focus:border-accent-blue"
+                />
+              </div>
+              <div class="flex flex-col gap-1.5">
+                <label for="pricing_type" class="text-sm font-medium text-text-primary">料金タイプ *</label>
+                <select
+                  id="pricing_type"
+                  name="pricing_type"
+                  required
+                  class="w-full px-3 py-2.5 text-base text-text-primary bg-surface-base border border-border-default rounded-sm min-h-[44px] focus:outline-2 focus:outline-accent-blue focus:border-accent-blue"
+                >
+                  <option value="free" selected={event.pricing_type === 'free'}>無料</option>
+                  <option value="paid" selected={event.pricing_type === 'paid'}>有料</option>
+                  <option value="donation" selected={event.pricing_type === 'donation'}>投げ銭制</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Cover Image URL -->
+            <Input
+              label="カバー画像URL"
+              name="cover_image_url"
+              id="cover_image_url"
+              type="url"
+              value={event.cover_image_url || ''}
+              placeholder="https://example.com/image.jpg"
+            />
+
+            <!-- Actions -->
+            <div class="flex items-center gap-3 pt-4 border-t border-border-default">
+              <Button type="submit" variant="accent" id="submit-btn">
+                更新する
+              </Button>
+              <Button variant="secondary" href="/dashboard/events">
+                戻る
+              </Button>
+              <span id="form-status" class="text-sm text-text-secondary ml-auto"></span>
+            </div>
+          </form>
+        </div>
+      )}
+
+      <!-- Check-in Tab -->
+      {activeTab === 'checkin' && (
+        <div class="flex flex-col gap-4">
+          <Card padding="md">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="heading-sm text-text-primary">チェックイン管理</h3>
+              <Button variant="accent" size="sm" href={`/dashboard/events/${event.id}/checkin`}>
+                チェックインダッシュボードを開く
+              </Button>
+            </div>
+            {eventStats && (
+              <div class="grid grid-cols-3 gap-4">
+                <div class="text-center p-3 bg-surface-soft rounded-sm">
+                  <p class="text-2xl font-bold text-text-primary">{eventStats.registrations.total}</p>
+                  <p class="text-xs text-text-secondary">総登録者数</p>
+                </div>
+                <div class="text-center p-3 bg-surface-soft rounded-sm">
+                  <p class="text-2xl font-bold text-success">{eventStats.registrations.checked_in}</p>
+                  <p class="text-xs text-text-secondary">チェックイン済み</p>
+                </div>
+                <div class="text-center p-3 bg-surface-soft rounded-sm">
+                  <p class="text-2xl font-bold text-accent-blue">{eventStats.checkin_rate}%</p>
+                  <p class="text-xs text-text-secondary">出席率</p>
+                </div>
+              </div>
+            )}
+          </Card>
+        </div>
+      )}
+
+      <!-- Payments Tab -->
+      {activeTab === 'payments' && (
+        <div class="flex flex-col gap-6">
+          <!-- Revenue Summary -->
+          {paymentsData?.summary && (
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <Card padding="md">
+                <p class="caption-mono text-text-secondary mb-1">総売上</p>
+                <p class="text-2xl font-bold text-text-primary">{formatCurrency(paymentsData.summary.succeeded)}</p>
+              </Card>
+              <Card padding="md">
+                <p class="caption-mono text-text-secondary mb-1">返金済み</p>
+                <p class="text-2xl font-bold text-danger">{formatCurrency(paymentsData.summary.refunded)}</p>
+              </Card>
+              <Card padding="md">
+                <p class="caption-mono text-text-secondary mb-1">保留中</p>
+                <p class="text-2xl font-bold text-warning">{formatCurrency(paymentsData.summary.pending)}</p>
+              </Card>
+            </div>
+          )}
+
+          {/* Payment Status Filter */}
+          <div class="flex gap-2 flex-wrap">
+            <a
+              href={`/dashboard/events/${event.id}/edit?tab=payments`}
+              class:list={['px-3 py-1.5 text-sm rounded-sm border no-underline transition-colors min-h-[36px] inline-flex items-center', !Astro.url.searchParams.get('payStatus') ? 'bg-accent-blue text-text-on-accent border-transparent' : 'border-border-default text-text-secondary hover:bg-surface-soft']}
+            >
+              すべて
+            </a>
+            <a
+              href={`/dashboard/events/${event.id}/edit?tab=payments&payStatus=succeeded`}
+              class:list={['px-3 py-1.5 text-sm rounded-sm border no-underline transition-colors min-h-[36px] inline-flex items-center', Astro.url.searchParams.get('payStatus') === 'succeeded' ? 'bg-accent-blue text-text-on-accent border-transparent' : 'border-border-default text-text-secondary hover:bg-surface-soft']}
+            >
+              支払い済み
+            </a>
+            <a
+              href={`/dashboard/events/${event.id}/edit?tab=payments&payStatus=refunded`}
+              class:list={['px-3 py-1.5 text-sm rounded-sm border no-underline transition-colors min-h-[36px] inline-flex items-center', Astro.url.searchParams.get('payStatus') === 'refunded' ? 'bg-accent-blue text-text-on-accent border-transparent' : 'border-border-default text-text-secondary hover:bg-surface-soft']}
+            >
+              返金済み
+            </a>
+            <a
+              href={`/dashboard/events/${event.id}/edit?tab=payments&payStatus=pending`}
+              class:list={['px-3 py-1.5 text-sm rounded-sm border no-underline transition-colors min-h-[36px] inline-flex items-center', Astro.url.searchParams.get('payStatus') === 'pending' ? 'bg-accent-blue text-text-on-accent border-transparent' : 'border-border-default text-text-secondary hover:bg-surface-soft']}
+            >
+              保留中
+            </a>
           </div>
 
-          <!-- Cover Image URL -->
-          <Input
-            label="カバー画像URL"
-            name="cover_image_url"
-            id="cover_image_url"
-            type="url"
-            value={event.cover_image_url || ''}
-            placeholder="https://example.com/image.jpg"
-          />
+          {/* Payments Table */}
+          {paymentsData?.payments?.length > 0 ? (
+            <div class="border border-border-default rounded-md overflow-hidden">
+              <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                  <thead>
+                    <tr class="bg-surface-soft border-b border-border-default">
+                      <th class="text-left px-4 py-3 font-medium text-text-secondary">決済ID</th>
+                      <th class="text-right px-4 py-3 font-medium text-text-secondary">金額</th>
+                      <th class="text-left px-4 py-3 font-medium text-text-secondary">ステータス</th>
+                      <th class="text-left px-4 py-3 font-medium text-text-secondary hidden md:table-cell">日時</th>
+                      <th class="text-right px-4 py-3 font-medium text-text-secondary">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paymentsData.payments.map((payment: any) => (
+                      <tr class="border-b border-border-default last:border-b-0 hover:bg-surface-soft transition-colors">
+                        <td class="px-4 py-3">
+                          <span class="caption-mono text-text-secondary">{payment.id?.substring(0, 8)}...</span>
+                        </td>
+                        <td class="px-4 py-3 text-right font-medium text-text-primary">
+                          {formatCurrency(payment.amount)}
+                        </td>
+                        <td class="px-4 py-3">
+                          <Badge variant={payment.status === 'succeeded' ? 'success' : payment.status === 'refunded' ? 'danger' : payment.status === 'pending' ? 'warning' : 'default'}>
+                            {payment.status === 'succeeded' ? '支払い済み' : payment.status === 'refunded' ? '返金済み' : payment.status === 'pending' ? '保留中' : payment.status}
+                          </Badge>
+                        </td>
+                        <td class="px-4 py-3 text-text-secondary hidden md:table-cell">
+                          {new Date(payment.created_at).toLocaleDateString('ja-JP')}
+                        </td>
+                        <td class="px-4 py-3 text-right">
+                          {payment.status === 'succeeded' && (
+                            <button
+                              type="button"
+                              class="px-3 py-1.5 text-xs font-medium rounded-sm border border-danger text-danger hover:bg-danger/10 transition-colors min-h-[32px]"
+                              data-payment-id={payment.id}
+                              onclick="handleRefund(this)"
+                            >
+                              返金
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            <Card padding="lg">
+              <p class="text-text-secondary text-center">決済データがありません</p>
+            </Card>
+          )}
 
-          <!-- Actions -->
-          <div class="flex items-center gap-3 pt-4 border-t border-border-default">
-            <Button type="submit" variant="accent" id="submit-btn">
-              更新する
+          {/* Export CSV placeholder */}
+          <div class="flex justify-end">
+            <Button variant="secondary" size="sm" onclick="alert('CSVエクスポート機能は準備中です')">
+              CSVエクスポート
             </Button>
-            <Button variant="secondary" href="/dashboard/events">
-              戻る
-            </Button>
-            <span id="form-status" class="text-sm text-text-secondary ml-auto"></span>
           </div>
-        </form>
-      </>
-    ) : (
-      <div class="text-center py-16">
-        <p class="heading-md text-text-secondary mb-4">{error || 'イベントが見つかりませんでした'}</p>
-        <Button variant="secondary" href="/dashboard/events">イベント一覧に戻る</Button>
-      </div>
-    )}
-  </div>
+        </div>
+      )}
+    </>
+  ) : (
+    <div class="text-center py-16">
+      <p class="heading-md text-text-secondary mb-4">{error || 'イベントが見つかりませんでした'}</p>
+      <Button variant="secondary" href="/dashboard/events">イベント一覧に戻る</Button>
+    </div>
+  )}
 </DashboardLayout>
 
-{event && (
+{event && activeTab === 'edit' && (
   <script define:vars={{ eventId: event.id }}>
     const form = document.getElementById('event-form');
     const submitBtn = document.getElementById('submit-btn');
@@ -297,5 +633,39 @@ const toDatetimeLocal = (iso: string): string => {
         submitBtn.disabled = false;
       }
     });
+  </script>
+)}
+
+{event && activeTab === 'payments' && (
+  <script define:vars={{ token: Astro.cookies.get('sb-token')?.value || '' }}>
+    async function handleRefund(btn: HTMLButtonElement) {
+      const paymentId = btn.dataset.paymentId;
+      if (!confirm('この決済を返金しますか？この操作は取り消せません。')) return;
+
+      btn.disabled = true;
+      btn.textContent = '処理中...';
+
+      try {
+        const res = await fetch(`/api/dashboard/payments/${paymentId}/refund`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+
+        if (res.ok) {
+          location.reload();
+        } else {
+          const err = await res.json();
+          alert(err.error?.message || '返金に失敗しました');
+          btn.disabled = false;
+          btn.textContent = '返金';
+        }
+      } catch {
+        alert('エラーが発生しました');
+        btn.disabled = false;
+        btn.textContent = '返金';
+      }
+    }
   </script>
 )}
